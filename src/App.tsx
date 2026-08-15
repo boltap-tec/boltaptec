@@ -1,5 +1,8 @@
+import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Zap } from 'lucide-react';
 import { useAuth } from './store/useAuth';
+import { initCloud, cloudEnabled } from './lib/cloud';
 import { Layout } from './components/Layout';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
@@ -23,6 +26,28 @@ function Protected({ children, adminOnly }: { children: JSX.Element; adminOnly?:
 
 export default function App() {
   const session = useAuth((s) => s.session);
+  const [ready, setReady] = useState(!cloudEnabled);
+
+  useEffect(() => {
+    if (!cloudEnabled) return;
+    let alive = true;
+    initCloud().finally(() => { if (alive) setReady(true); });
+    return () => { alive = false; };
+  }, []);
+
+  if (!ready) {
+    return (
+      <div className="min-h-full grid place-items-center bg-gradient-to-br from-brand-600 to-indigo-900 text-white">
+        <div className="text-center">
+          <div className="h-14 w-14 rounded-2xl bg-white/15 grid place-items-center mx-auto mb-3 animate-pulse">
+            <Zap size={30} fill="white" />
+          </div>
+          <div className="font-bold">Syncing with cloud…</div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <BrowserRouter>
       <Routes>

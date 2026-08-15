@@ -1,14 +1,30 @@
 import React, { useState } from 'react';
-import { Save, RotateCcw, Database, Building2, CreditCard, Trash2, Info, FileSpreadsheet } from 'lucide-react';
+import { Save, RotateCcw, Database, Building2, CreditCard, Trash2, Info, FileSpreadsheet, Cloud, CloudOff, UploadCloud, DownloadCloud } from 'lucide-react';
 import { useData } from '../store/useData';
 import { Card, Field, Badge } from '../components/ui';
 import { isValidVpa } from '../lib/upi';
 import { downloadBackup } from '../lib/backup';
+import { cloudEnabled, pushAll, pullAll } from '../lib/cloud';
 
 export const Settings: React.FC = () => {
   const { settings, employees, attendance, ledger, resetAll } = useData();
   const [form, setForm] = useState(settings);
   const [saved, setSaved] = useState(false);
+  const [cloudMsg, setCloudMsg] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const cloudPush = async () => {
+    setBusy(true); setCloudMsg('');
+    try { await pushAll(); setCloudMsg('✓ Local data uploaded to Supabase.'); }
+    catch (e: any) { setCloudMsg('⚠️ ' + (e?.message || 'Upload failed')); }
+    finally { setBusy(false); }
+  };
+  const cloudPull = async () => {
+    setBusy(true); setCloudMsg('');
+    try { await pullAll(); setCloudMsg('✓ Loaded latest data from Supabase.'); }
+    catch (e: any) { setCloudMsg('⚠️ ' + (e?.message || 'Download failed')); }
+    finally { setBusy(false); }
+  };
 
   const save = () => {
     if (form.admin_upi_id && !isValidVpa(form.admin_upi_id)) { alert('Business UPI ID looks invalid'); return; }
@@ -42,6 +58,29 @@ export const Settings: React.FC = () => {
         <h1 className="text-2xl font-extrabold text-slate-800">Settings</h1>
         <p className="text-slate-400 text-sm">Business profile, payments & data</p>
       </div>
+
+      <Card className="p-5 space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="font-bold text-slate-700 flex items-center gap-2">
+            {cloudEnabled ? <Cloud size={18} className="text-emerald-500" /> : <CloudOff size={18} className="text-slate-400" />} Cloud Sync
+          </h3>
+          <Badge tone={cloudEnabled ? 'green' : 'slate'}>{cloudEnabled ? 'Connected to Supabase' : 'Local only'}</Badge>
+        </div>
+        {cloudEnabled ? (
+          <>
+            <p className="text-sm text-slate-500">Data syncs automatically to your Supabase cloud on every change, across all phones.</p>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <button onClick={cloudPush} disabled={busy} className="btn-ghost flex-1"><UploadCloud size={16} /> Push local → cloud</button>
+              <button onClick={cloudPull} disabled={busy} className="btn-ghost flex-1"><DownloadCloud size={16} /> Pull cloud → local</button>
+            </div>
+          </>
+        ) : (
+          <div className="rounded-xl bg-slate-50 text-slate-500 p-3 text-sm">
+            Not connected. Add <code className="text-brand-600">VITE_SUPABASE_URL</code> and <code className="text-brand-600">VITE_SUPABASE_ANON_KEY</code> to a <code>.env</code> file (and run <code>supabase/schema.sql</code>) to turn on cloud sync, then restart the app.
+          </div>
+        )}
+        {cloudMsg && <div className="text-sm font-semibold text-slate-600">{cloudMsg}</div>}
+      </Card>
 
       <Card className="p-5 space-y-3">
         <h3 className="font-bold text-slate-700 flex items-center gap-2"><Building2 size={18} className="text-brand-500" /> Business Profile</h3>
@@ -86,8 +125,8 @@ export const Settings: React.FC = () => {
         <h3 className="font-bold text-slate-700 flex items-center gap-2 mb-2"><CreditCard size={18} className="text-brand-500" /> Integrations</h3>
         <div className="space-y-2 text-sm">
           {[
-            ['GitHub', 'Version control & CI', false],
-            ['Supabase', 'Cloud database + auth', false],
+            ['GitHub', 'Version control & CI', true],
+            ['Supabase', 'Cloud database + auth', cloudEnabled],
             ['Vercel', 'Web hosting', false],
             ['Capacitor', 'Android APK build', false],
             ['UPI / GPay', 'Payments', true],

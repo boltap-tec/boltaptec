@@ -37,7 +37,9 @@ create table if not exists attendance (
   salary_amount numeric default 0,
   daily_wage    numeric default 0,
   ref_names     text,
-  extra_time    numeric default 0
+  extra_time    numeric default 0,
+  paid          boolean default false,   -- true once this day's salary is paid
+  salary_id     text                     -- which posting settled it
 );
 create index if not exists attendance_emp_date on attendance(employee_id, date);
 

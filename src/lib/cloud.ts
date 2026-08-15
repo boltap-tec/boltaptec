@@ -1,0 +1,125 @@
+import { supabase, isSupabaseConfigured } from './supabase';
+import { useData } from '../store/useData';
+import type { Settings } from '../types';
+
+// One place that maps the zustand store slices to Supabase tables.
+const TABLES = [
+  { slice: 'employees', table: 'employees', key: 'employee_id' },
+  { slice: 'attendance', table: 'attendance', key: 'id' },
+  { slice: 'ledger', table: 'ledger', key: 'id' },
+  { slice: 'salaryDetails', table: 'salary_details', key: 'id' },
+  { slice: 'postings', table: 'salary_postings', key: 'id' },
+  { slice: 'requests', table: 'advance_requests', key: 'id' },
+] as const;
+
+export const cloudEnabled = isSupabaseConfigured;
+
+type AnyRow = Record<string, any>;
+
+async function fetchAll() {
+  const out: Record<string, any[]> = {};
+  for (const t of TABLES) {
+    const { data, error } = await supabase!.from(t.table).select('*');
+    if (error) throw error;
+    out[t.slice] = data || [];
+  }
+  const { data: s } = await supabase!.from('settings').select('*').eq('id', 1).maybeSingle();
+  return { slices: out, settings: s as (Settings & { id?: number }) | null };
+}
+
+// Push the entire local state up (used to seed an empty cloud DB).
+export async function pushAll() {
+  const st: AnyRow = useData.getState();
+  for (const t of TABLES) {
+    const rows = st[t.slice] as AnyRow[];
+    if (rows.length) {
+      const { error } = await supabase!.from(t.table).upsert(rows, { onConflict: t.key });
+      if (error) throw error;
+    }
+  }
+  await supabase!.from('settings').upsert({ id: 1, ...st.settings }, { onConflict: 'id' });
+}
+
+// Replace local state with what's in the cloud.
+export async function pullAll() {
+  const { slices, settings } = await fetchAll();
+  useData.setState({
+    employees: slices.employees as any,
+    attendance: slices.attendance as any,
+    ledger: slices.ledger as any,
+    salaryDetails: slices.salaryDetails as any,
+    postings: slices.postings as any,
+    requests: slices.requests as any,
+    ...(settings ? { settings: stripId(settings) } : {}),
+  });
+}
+
+const stripId = (s: any): Settings => {
+  const { id, ...rest } = s;
+  void id;
+  return rest as Settings;
+};
+
+const snapshot = () => {
+  const st: AnyRow = useData.getState();
+  const s: Record<string, any[]> = {};
+  TABLES.forEach((t) => { s[t.slice] = [...(st[t.slice] as any[])]; });
+  return { slices: s, settings: st.settings };
+};
+
+// Diff two row arrays by key → what changed / what was removed.
+function diff(prev: AnyRow[], next: AnyRow[], key: string) {
+  const prevMap = new Map(prev.map((r) => [r[key], r]));
+  const nextMap = new Map(next.map((r) => [r[key], r]));
+  const changed = next.filter((r) => JSON.stringify(prevMap.get(r[key])) !== JSON.stringify(r));
+  const removed = prev.filter((r) => !nextMap.has(r[key])).map((r) => r[key]);
+  return { changed, removed };
+}
+
+let prev = snapshot();
+let timer: any;
+
+async function flush() {
+  const next = snapshot();
+  try {
+    for (const t of TABLES) {
+      const { changed, removed } = diff(prev.slices[t.slice], next.slices[t.slice], t.key);
+      if (changed.length) await supabase!.from(t.table).upsert(changed, { onConflict: t.key });
+      if (removed.length) await supabase!.from(t.table).delete().in(t.key, removed);
+    }
+    if (JSON.stringify(prev.settings) !== JSON.stringify(next.settings)) {
+      await supabase!.from('settings').upsert({ id: 1, ...next.settings }, { onConflict: 'id' });
+    }
+    prev = next;
+  } catch (e) {
+    console.error('[cloud] sync failed (will retry on next change):', e);
+  }
+}
+
+function startSync() {
+  prev = snapshot();
+  useData.subscribe(() => {
+    clearTimeout(timer);
+    timer = setTimeout(flush, 700); // debounce bursts (e.g. generating payroll)
+  });
+}
+
+// Called once at app start. Returns when the store reflects the cloud (or
+// immediately in local-only mode). Never throws — falls back to local data.
+export async function initCloud(): Promise<{ mode: 'cloud' | 'local'; error?: string }> {
+  if (!cloudEnabled || !supabase) return { mode: 'local' };
+  try {
+    const { slices } = await fetchAll();
+    const empty = TABLES.every((t) => (slices[t.slice] || []).length === 0);
+    if (empty) {
+      await pushAll();          // first run: seed cloud from the local/demo data
+    } else {
+      await pullAll();          // returning: load cloud data into the app
+    }
+    startSync();
+    return { mode: 'cloud' };
+  } catch (e: any) {
+    console.error('[cloud] init failed, staying local:', e);
+    return { mode: 'local', error: e?.message || String(e) };
+  }
+}
