@@ -1,0 +1,51 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  color: #1b1f2a;
+  -webkit-font-smoothing: antialiased;
+  /* soft tinted "aurora" background */
+  background-color: #f6f7fc;
+  background-image:
+    radial-gradient(1100px 560px at 8% -8%, #e7ecff 0%, rgba(231,236,255,0) 60%),
+    radial-gradient(1000px 520px at 108% 4%, #f3ecff 0%, rgba(243,236,255,0) 55%),
+    radial-gradient(900px 700px at 50% 120%, #eafff6 0%, rgba(234,255,246,0) 55%);
+  background-attachment: fixed;
+}
+
+/* thin scrollbars */
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: #cbd0e0; border-radius: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+
+@layer components {
+  .card {
+    @apply bg-white rounded-2xl shadow-card border border-slate-100;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition active:scale-[.98] disabled:opacity-50 disabled:pointer-events-none;
+  }
+  .btn-primary { @apply btn bg-brand-600 text-white hover:bg-brand-700 shadow-sm; }
+  .btn-ghost { @apply btn bg-slate-100 text-slate-700 hover:bg-slate-200; }
+  .btn-danger { @apply btn bg-rose-600 text-white hover:bg-rose-700; }
+  .btn-success { @apply btn bg-emerald-600 text-white hover:bg-emerald-700; }
+  .input {
+    @apply w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm outline-none focus:border-brand-500 focus:ring-2 focus:ring-brand-100 transition;
+  }
+  .label { @apply block text-xs font-semibold text-slate-500 mb-1.5; }
+  .chip { @apply inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold; }
+}
+
+/* safe area for mobile / apk */
+.pb-safe { padding-bottom: calc(env(safe-area-inset-bottom) + 0.5rem); }

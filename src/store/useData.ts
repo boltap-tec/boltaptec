@@ -1,0 +1,384 @@
+import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
+import type {
+  Employee, Attendance, LedgerEntry, SalaryDetail, SalaryPosting,
+  AdvanceRequest, Settings,
+} from '../types';
+import {
+  seedEmployees, seedAttendance, seedLedger, seedSalaryDetails,
+  seedPostings, seedAdvanceRequests, defaultSettings,
+} from '../lib/seed';
+import { advancePending, hourlyRate, computeAttendanceSalary, hoursBetween } from '../lib/calc';
+import { uid, today, fmtDate } from '../lib/format';
+
+interface DataState {
+  employees: Employee[];
+  attendance: Attendance[];
+  ledger: LedgerEntry[];
+  salaryDetails: SalaryDetail[];
+  postings: SalaryPosting[];
+  requests: AdvanceRequest[];
+  settings: Settings;
+
+  // employees
+  addEmployee: (e: Partial<Employee> & { name: string; daily_wage: number }) => Employee;
+  updateEmployee: (id: string, patch: Partial<Employee>) => void;
+  deleteEmployee: (id: string) => void;
+
+  // attendance
+  addAttendance: (a: Omit<Attendance, 'id'>) => void;
+  updateAttendance: (id: string, patch: { date?: string; time_in?: string; time_out?: string }) => void;
+  deleteAttendance: (id: string) => void;
+  markIn: (employeeId: string) => { ok: boolean; msg: string };
+  markOut: (employeeId: string) => { ok: boolean; msg: string };
+
+  // advances
+  giveAdvance: (employeeId: string, amount: number, method: 'Cash' | 'UPI', note?: string, weeklyRecovery?: number) => void;
+  recoverAdvance: (employeeId: string, amount: number, note?: string) => void;
+
+  // advance requests
+  createRequest: (r: Omit<AdvanceRequest, 'id' | 'status' | 'created_at' | 'decided_at' | 'decided_by' | 'admin_note'>) => void;
+  approveRequest: (id: string, decidedBy: string, note?: string) => void;
+  rejectRequest: (id: string, decidedBy: string, note?: string) => void;
+
+  // advance request edit
+  updateRequest: (id: string, patch: Partial<Pick<AdvanceRequest, 'amount' | 'reason' | 'method'>>) => void;
+
+  // salary
+  paySalary: (employeeId: string, amount: number, salaryId: string | null, method: 'Cash' | 'UPI') => void;
+  // Generate a payroll for a period → creates a posting + a payment-grid row per
+  // employee (from their UNPAID attendance days), claims those days, and posts it.
+  generatePayroll: (from: string, to: string) => SalaryPosting | null;
+  // Pay one grid row (recover advance + salary cash, full or partial). The row
+  // stays payable until fully settled.
+  paySalaryDetail: (detailId: string, recovery: number, cash: number, method: 'Cash' | 'UPI') => void;
+  deletePosting: (postingId: string) => void;
+
+  resetAll: () => void;
+}
+
+const recomputeEmployee = (e: Employee): Employee => ({
+  ...e,
+  hourly_rate: hourlyRate(e.daily_wage),
+  advance_pending: advancePending(e),
+  salary_pending: Math.max(0, e.total_salary - e.salary_given),
+});
+
+export const useData = create<DataState>()(
+  persist(
+    (set, get) => ({
+      employees: [],
+      attendance: [],
+      ledger: [],
+      salaryDetails: [],
+      postings: [],
+      requests: [],
+      settings: defaultSettings(),
+
+      addEmployee: (e) => {
+        const emps = get().employees;
+        const n = emps.length + 1;
+        const cleanName = e.name.trim().replace(/\s+/g, '');
+        const employee_id = e.employee_id || `${cleanName}_E${n}`;
+        const emp: Employee = recomputeEmployee({
+          employee_id,
+          name: e.name.trim(),
+          address: e.address ?? null,
+          phone: e.phone ?? null,
+          photo: e.photo ?? null,
+          daily_wage: Number(e.daily_wage),
+          adhar_photo: e.adhar_photo ?? null,
+          status: e.status ?? 'Active',
+          hourly_rate: hourlyRate(Number(e.daily_wage)),
+          upi_id: e.upi_id ?? null,
+          pin: e.pin ?? '1234',
+          weekly_recovery: e.weekly_recovery ?? 0,
+          join_date: e.join_date ?? today(),
+          total_salary: 0, salary_given: 0, salary_pending: 0,
+          total_advance_given: 0, advance_recovered: 0, advance_pending: 0,
+        });
+        set({ employees: [...emps, emp] });
+        return emp;
+      },
+
+      updateEmployee: (id, patch) =>
+        set({
+          employees: get().employees.map((e) =>
+            e.employee_id === id ? recomputeEmployee({ ...e, ...patch }) : e,
+          ),
+        }),
+
+      deleteEmployee: (id) =>
+        set({ employees: get().employees.filter((e) => e.employee_id !== id) }),
+
+      addAttendance: (a) => {
+        const { salary_amount, extra_time } = computeAttendanceSalary(a.total_hours, a.daily_wage);
+        const row: Attendance = { ...a, id: uid('att_'), salary_amount, extra_time };
+        set({ attendance: [row, ...get().attendance] });
+      },
+
+      updateAttendance: (id, patch) =>
+        set({
+          attendance: get().attendance.map((a) => {
+            if (a.id !== id) return a;
+            const time_in = patch.time_in ?? a.time_in;
+            const time_out = patch.time_out ?? a.time_out;
+            const hrs = time_in && time_out ? hoursBetween(time_in, time_out) : a.total_hours;
+            const { salary_amount, extra_time } = computeAttendanceSalary(hrs, a.daily_wage);
+            return { ...a, date: patch.date ?? a.date, time_in, time_out, total_hours: hrs, salary_amount, extra_time };
+          }),
+        }),
+
+      deleteAttendance: (id) =>
+        set({ attendance: get().attendance.filter((a) => a.id !== id) }),
+
+      // Worker self-service punch-in. Creates an open row (no time-out yet).
+      markIn: (employeeId) => {
+        const emp = get().employees.find((e) => e.employee_id === employeeId);
+        if (!emp) return { ok: false, msg: 'Employee not found' };
+        const day = today();
+        const open = get().attendance.find(
+          (a) => a.employee_id === employeeId && a.date === day && !a.time_out,
+        );
+        if (open) return { ok: false, msg: 'You are already marked in for today.' };
+        const now = new Date().toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase();
+        const row: Attendance = {
+          id: uid('att_'), date: day, employee_id: employeeId, employee_name: emp.name,
+          time_in: now, time_out: null, total_hours: 0, salary_amount: 0,
+          daily_wage: emp.daily_wage, ref_names: emp.employee_id, extra_time: 0,
+        };
+        set({ attendance: [row, ...get().attendance] });
+        return { ok: true, msg: `Marked IN at ${now}` };
+      },
+
+      // Worker self-service punch-out. Closes the open row and computes pay.
+      markOut: (employeeId) => {
+        const day = today();
+        const open = get().attendance.find(
+          (a) => a.employee_id === employeeId && a.date === day && !a.time_out,
+        );
+        if (!open) return { ok: false, msg: 'You have not marked in yet today.' };
+        const now = new Date().toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase();
+        const hrs = hoursBetween(open.time_in || now, now);
+        const { salary_amount, extra_time } = computeAttendanceSalary(hrs, open.daily_wage);
+        set({
+          attendance: get().attendance.map((a) =>
+            a.id === open.id ? { ...a, time_out: now, total_hours: hrs, salary_amount, extra_time } : a,
+          ),
+        });
+        return { ok: true, msg: `Marked OUT at ${now} · ${hrs}h` };
+      },
+
+      giveAdvance: (employeeId, amount, method, note, weeklyRecovery) => {
+        const emp = get().employees.find((e) => e.employee_id === employeeId);
+        if (!emp) return;
+        const entry: LedgerEntry = {
+          id: uid('led_'), date: today(), category: 'Advance_Payment',
+          employee_id: employeeId, employee_name: emp.name,
+          description: 'Advance_Payment', salary_payment_amount: null,
+          advance_payment: amount, advance_recovery: null,
+          total_amount_given: amount, salary_id: null,
+          remark: note ?? null, old_advance: emp.advance_pending, method,
+        };
+        set({ ledger: [entry, ...get().ledger] });
+        get().updateEmployee(employeeId, {
+          total_advance_given: emp.total_advance_given + amount,
+          ...(weeklyRecovery != null ? { weekly_recovery: weeklyRecovery } : {}),
+        });
+      },
+
+      recoverAdvance: (employeeId, amount, note) => {
+        const emp = get().employees.find((e) => e.employee_id === employeeId);
+        if (!emp) return;
+        const entry: LedgerEntry = {
+          id: uid('led_'), date: today(), category: 'Advance_Recovery',
+          employee_id: employeeId, employee_name: emp.name,
+          description: 'Advance_Recovery', salary_payment_amount: null,
+          advance_payment: null, advance_recovery: amount,
+          total_amount_given: null, salary_id: null,
+          remark: note ?? null, old_advance: emp.advance_pending, method: 'Cash',
+        };
+        set({ ledger: [entry, ...get().ledger] });
+        get().updateEmployee(employeeId, {
+          advance_recovered: emp.advance_recovered + amount,
+        });
+      },
+
+      createRequest: (r) =>
+        set({
+          requests: [
+            {
+              ...r, id: uid('req_'), status: 'Pending',
+              created_at: new Date().toISOString(),
+              decided_at: null, decided_by: null, admin_note: null,
+            },
+            ...get().requests,
+          ],
+        }),
+
+      approveRequest: (id, decidedBy, note) => {
+        const req = get().requests.find((r) => r.id === id);
+        if (!req || req.status !== 'Pending') return;
+        set({
+          requests: get().requests.map((r) =>
+            r.id === id
+              ? { ...r, status: 'Approved', decided_at: new Date().toISOString(), decided_by: decidedBy, admin_note: note ?? null }
+              : r,
+          ),
+        });
+        get().giveAdvance(req.employee_id, req.amount, req.method, `Approved request: ${req.reason}`);
+      },
+
+      rejectRequest: (id, decidedBy, note) =>
+        set({
+          requests: get().requests.map((r) =>
+            r.id === id
+              ? { ...r, status: 'Rejected', decided_at: new Date().toISOString(), decided_by: decidedBy, admin_note: note ?? null }
+              : r,
+          ),
+        }),
+
+      paySalary: (employeeId, amount, salaryId, method) => {
+        const emp = get().employees.find((e) => e.employee_id === employeeId);
+        if (!emp) return;
+        const entry: LedgerEntry = {
+          id: uid('led_'), date: today(), category: 'Salary',
+          employee_id: employeeId, employee_name: emp.name,
+          description: 'Salary', salary_payment_amount: amount,
+          advance_payment: null, advance_recovery: null,
+          total_amount_given: amount, salary_id: salaryId,
+          remark: null, old_advance: null, method,
+        };
+        set({ ledger: [entry, ...get().ledger] });
+        get().updateEmployee(employeeId, { salary_given: emp.salary_given + amount });
+      },
+
+      updateRequest: (id, patch) =>
+        set({
+          requests: get().requests.map((r) =>
+            r.id === id && r.status === 'Pending' ? { ...r, ...patch } : r,
+          ),
+        }),
+
+      generatePayroll: (from, to) => {
+        const attendance = get().attendance;
+        const details: SalaryDetail[] = [];
+        const claimed = new Set<string>();
+        get().employees.forEach((e) => {
+          const rows = attendance.filter(
+            (a) => a.employee_id === e.employee_id && a.date >= from && a.date <= to && !a.paid,
+          );
+          const gross = rows.reduce((s, a) => s + a.salary_amount, 0);
+          if (rows.length === 0 || gross <= 0) return;
+          rows.forEach((a) => claimed.add(a.id));
+          details.push({
+            id: `${from}_${to}_${e.employee_id}_${uid()}`,
+            from_date: from, to_date: to, employee_id: e.employee_id, employee_name: e.name,
+            total_hours: rows.reduce((s, a) => s + a.total_hours, 0),
+            salary_amount: gross, daily_wage: e.daily_wage,
+            extra_time: rows.reduce((s, a) => s + a.extra_time, 0),
+            advance_recovered: 0, salary_given: 0, salary_pending: gross,
+            from_to: `${fmtDate(from)} → ${fmtDate(to)}`,
+          });
+        });
+        if (details.length === 0) return null;
+        const posting: SalaryPosting = {
+          id: uid('sp_'), from_date: from, to_date: to, submitted: true, created_at: new Date().toISOString(),
+        };
+        set({
+          attendance: get().attendance.map((a) =>
+            claimed.has(a.id) ? { ...a, paid: true, salary_id: posting.id } : a,
+          ),
+          postings: [posting, ...get().postings],
+          salaryDetails: [...details, ...get().salaryDetails],
+        });
+        // Recognise the earned salary on each employee (paid amount catches up as rows are paid).
+        details.forEach((d) => {
+          const emp = get().employees.find((e) => e.employee_id === d.employee_id);
+          if (emp) get().updateEmployee(d.employee_id, { total_salary: emp.total_salary + d.salary_amount });
+        });
+        return posting;
+      },
+
+      paySalaryDetail: (detailId, recovery, cash, method) => {
+        const d = get().salaryDetails.find((x) => x.id === detailId);
+        if (!d) return;
+        const emp = get().employees.find((e) => e.employee_id === d.employee_id);
+        if (!emp) return;
+        const rec = Math.max(0, Math.min(recovery, advancePending(emp)));
+        const c = Math.max(0, cash);
+        if (rec + c <= 0) return;
+        const date = today();
+        const salaryId = `${d.from_date}_${d.to_date}`;
+        const entries: LedgerEntry[] = [];
+        if (c > 0) entries.push({
+          id: uid('led_'), date, category: 'Salary', employee_id: d.employee_id, employee_name: emp.name,
+          description: 'Salary', salary_payment_amount: c, advance_payment: null, advance_recovery: null,
+          total_amount_given: c, salary_id: salaryId, remark: d.from_to, old_advance: null, method,
+        });
+        if (rec > 0) entries.push({
+          id: uid('led_'), date, category: 'Advance_Recovery', employee_id: d.employee_id, employee_name: emp.name,
+          description: 'Advance_Recovery', salary_payment_amount: null, advance_payment: null, advance_recovery: rec,
+          total_amount_given: null, salary_id: salaryId, remark: 'Recovered from salary', old_advance: emp.advance_pending, method: 'Cash',
+        });
+        const newRecovered = d.advance_recovered + rec;
+        const newPaid = d.salary_given + c;
+        const remaining = Math.max(0, (d.salary_amount - newRecovered) - newPaid);
+        set({
+          salaryDetails: get().salaryDetails.map((x) =>
+            x.id === detailId ? { ...x, advance_recovered: newRecovered, salary_given: newPaid, salary_pending: remaining } : x,
+          ),
+          ledger: [...entries, ...get().ledger],
+        });
+        get().updateEmployee(d.employee_id, {
+          salary_given: emp.salary_given + c + rec,
+          advance_recovered: emp.advance_recovered + rec,
+        });
+      },
+
+      deletePosting: (postingId) => {
+        const details = get().salaryDetails.filter((d) => {
+          const p = get().postings.find((x) => x.id === postingId);
+          return p && d.from_date === p.from_date && d.to_date === p.to_date;
+        });
+        const empIds = new Set(details.map((d) => d.employee_id));
+        // Release the claimed attendance days back to unpaid.
+        set({
+          attendance: get().attendance.map((a) => (a.salary_id === postingId ? { ...a, paid: false, salary_id: null } : a)),
+          postings: get().postings.filter((p) => p.id !== postingId),
+          salaryDetails: get().salaryDetails.filter((d) => !details.includes(d)),
+        });
+        // Roll back employee totals for this posting.
+        details.forEach((d) => {
+          const emp = get().employees.find((e) => e.employee_id === d.employee_id);
+          if (emp) get().updateEmployee(d.employee_id, {
+            total_salary: Math.max(0, emp.total_salary - d.salary_amount),
+            salary_given: Math.max(0, emp.salary_given - d.salary_given - d.advance_recovered),
+            advance_recovered: Math.max(0, emp.advance_recovered - d.advance_recovered),
+          });
+        });
+        void empIds;
+      },
+
+      resetAll: () =>
+        set({
+          employees: seedEmployees(),
+          attendance: seedAttendance(),
+          ledger: seedLedger(),
+          salaryDetails: seedSalaryDetails(),
+          postings: seedPostings(),
+          requests: seedAdvanceRequests(),
+          settings: defaultSettings(),
+        }),
+    }),
+    {
+      name: 'boltap-data-v2',
+      onRehydrateStorage: () => (state) => {
+        // First run: hydrate from the bundled Excel export.
+        if (state && state.employees.length === 0) {
+          state.resetAll();
+        }
+      },
+    },
+  ),
+);
