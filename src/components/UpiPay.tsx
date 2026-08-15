@@ -35,10 +35,11 @@ export const UpiPay: React.FC<{ vpa: string; name: string; amount: number; note?
         {copied ? <Check size={14} className="text-emerald-500" /> : <Copy size={14} />} {vpa}
       </button>
       <div className="grid grid-cols-2 gap-2 mt-3">
-        <a href={gpay} className="btn-success text-sm"><Smartphone size={16} /> GPay</a>
-        <a href={upi} className="btn-primary text-sm"><Smartphone size={16} /> UPI App</a>
+        <button onClick={() => { window.location.href = gpay; }} className="btn-success text-sm"><Smartphone size={16} /> GPay</button>
+        <button onClick={() => { window.location.href = upi; }} className="btn-primary text-sm"><Smartphone size={16} /> UPI App</button>
       </div>
-      <p className="text-[11px] text-slate-400 mt-2">Scan the QR, or tap a button on your phone.</p>
+      <a href={upi} className="block text-[11px] text-brand-600 font-semibold mt-2">Open UPI app directly →</a>
+      <p className="text-[11px] text-slate-400 mt-1">On a phone this opens GPay/PhonePe/Paytm. On desktop, scan the QR.</p>
     </div>
   );
 };

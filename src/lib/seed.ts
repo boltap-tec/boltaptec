@@ -137,5 +137,6 @@ export const defaultSettings = (): Settings => ({
   admin_upi_id: 'yourbusiness@okaxis',
   admin_pin: '1234',
   standard_hours: 8,
+  lunch_hours: 1,
   week_start: 6, // Saturday, matching the sample data
 });

@@ -33,11 +33,12 @@ export interface Attendance {
   employee_name: string;
   time_in: string | null;
   time_out: string | null;
-  total_hours: number;
+  total_hours: number;        // NET worked hours (after lunch deduction)
   salary_amount: number;
   daily_wage: number;
   ref_names: string | null;   // group members worked with
   extra_time: number;         // hours beyond 8
+  lunch_hours?: number;       // unpaid break deducted from the shift
   paid?: boolean;             // true once salary for this day has been paid
   salary_id?: string | null;  // which salary period paid it
 }
@@ -116,5 +117,6 @@ export interface Settings {
   admin_upi_id: string;       // where employees pay back / receive
   admin_pin: string;          // admin login PIN (local demo only)
   standard_hours: number;     // hours per day (8)
+  lunch_hours: number;        // default unpaid break deducted per shift
   week_start: number;         // 0=Sun..6=Sat
 }

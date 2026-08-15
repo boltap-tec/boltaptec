@@ -6,7 +6,7 @@ import { useData } from '../store/useData';
 import { useAuth } from '../store/useAuth';
 import { Card, Avatar, Badge, Modal, Field, EmptyState, StatCard } from '../components/ui';
 import { UpiPay } from '../components/UpiPay';
-import { inr, fmtDate } from '../lib/format';
+import { inr, fmtDate, today } from '../lib/format';
 import { advancePending } from '../lib/calc';
 import type { AdvanceRequest } from '../types';
 
@@ -38,6 +38,9 @@ export const Advances: React.FC = () => {
   const [amount, setAmount] = useState('');
   const [reason, setReason] = useState('');
   const [method, setMethod] = useState<'Cash' | 'UPI'>('UPI');
+  const [giveDate, setGiveDate] = useState(today());
+
+  const activeEmployees = employees.filter((e) => e.status === 'Active');
 
   const visibleRequests = useMemo(
     () => isAdmin ? requests : requests.filter((r) => r.employee_id === session?.employee_id),
@@ -60,7 +63,7 @@ export const Advances: React.FC = () => {
     const amt = Number(amount);
     const e = employees.find((x) => x.employee_id === empId);
     if (!e || !amt) return;
-    giveAdvance(e.employee_id, amt, method, reason || 'Direct advance');
+    giveAdvance(e.employee_id, amt, method, reason || 'Direct advance', undefined, giveDate);
     if (method === 'UPI' && e.upi_id) { setApproveFor({ employee_id: e.employee_id, employee_name: e.name, amount: amt } as any); setShowPay(true); }
     else { setDirectModal(false); setAmount(''); setReason(''); }
   };
@@ -89,7 +92,7 @@ export const Advances: React.FC = () => {
             <Send size={16} /> <span className="hidden sm:inline">Request</span>
           </button>
           {isAdmin && (
-            <button onClick={() => { setEmpId(''); setAmount(''); setReason(''); setMethod('Cash'); setDirectModal(true); }} className="btn-primary">
+            <button onClick={() => { setEmpId(''); setAmount(''); setReason(''); setMethod('Cash'); setGiveDate(today()); setDirectModal(true); }} className="btn-primary">
               <Plus size={16} /> <span className="hidden sm:inline">Give Advance</span>
             </button>
           )}
@@ -196,10 +199,10 @@ export const Advances: React.FC = () => {
       <Modal open={reqModal} onClose={() => setReqModal(false)} title="Request Advance">
         <div className="space-y-3">
           {isAdmin ? (
-            <Field label="Employee">
+            <Field label="Employee (active only)">
               <select className="input" value={empId} onChange={(e) => setEmpId(e.target.value)}>
                 <option value="">Select employee…</option>
-                {employees.map((e) => <option key={e.employee_id} value={e.employee_id}>{e.name}</option>)}
+                {activeEmployees.map((e) => <option key={e.employee_id} value={e.employee_id}>{e.name}</option>)}
               </select>
             </Field>
           ) : (
@@ -231,14 +234,17 @@ export const Advances: React.FC = () => {
       <Modal open={directModal} onClose={() => setDirectModal(false)} title="Give Advance Directly">
         {showPay && approveFor ? null : (
           <div className="space-y-3">
-            <Field label="Employee">
+            <Field label="Employee (active only)">
               <select className="input" value={empId} onChange={(e) => setEmpId(e.target.value)}>
                 <option value="">Select employee…</option>
-                {employees.map((e) => <option key={e.employee_id} value={e.employee_id}>{e.name}</option>)}
+                {activeEmployees.map((e) => <option key={e.employee_id} value={e.employee_id}>{e.name}</option>)}
               </select>
             </Field>
             {empId && myEmp && <div className="text-xs text-rose-500">Current due: {inr(advancePending(myEmp))}{myEmp.upi_id ? ` · UPI: ${myEmp.upi_id}` : ' · no UPI on file'}</div>}
-            <Field label="Amount (₹)"><input type="number" className="input text-lg" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" /></Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Amount (₹)"><input type="number" className="input text-lg" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" /></Field>
+              <Field label="Date"><input type="date" className="input" value={giveDate} onChange={(e) => setGiveDate(e.target.value)} /></Field>
+            </div>
             <Field label="Note"><input className="input" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Optional remark" /></Field>
             <Field label="Method">
               <div className="grid grid-cols-2 gap-2">

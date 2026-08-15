@@ -2,18 +2,18 @@ import React, { useState, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
   ArrowLeft, Phone, MapPin, Wallet, HandCoins, TrendingDown, Clock,
-  Banknote, CreditCard, Smartphone, KeyRound, Fingerprint, RotateCcw,
+  Banknote, CreditCard, Smartphone, KeyRound, Fingerprint, RotateCcw, Trash2,
 } from 'lucide-react';
 import { useData } from '../store/useData';
 import { Card, Avatar, Badge, Modal, Field, StatCard, EmptyState, StatusDot } from '../components/ui';
 import { UpiPay } from '../components/UpiPay';
-import { inr, fmtDate } from '../lib/format';
+import { inr, fmtDate, today } from '../lib/format';
 import { advancePending } from '../lib/calc';
 import { shortDeviceId } from '../lib/device';
 
 export const EmployeeDetail: React.FC = () => {
   const { id } = useParams();
-  const { employees, ledger, attendance, giveAdvance, recoverAdvance, paySalary, updateEmployee } = useData();
+  const { employees, ledger, attendance, giveAdvance, recoverAdvance, paySalary, updateEmployee, deleteLedgerEntry } = useData();
   const emp = employees.find((e) => e.employee_id === id);
 
   const [modal, setModal] = useState<null | 'advance' | 'recover' | 'salary'>(null);
@@ -21,10 +21,24 @@ export const EmployeeDetail: React.FC = () => {
   const [method, setMethod] = useState<'Cash' | 'UPI'>('Cash');
   const [note, setNote] = useState('');
   const [weekly, setWeekly] = useState('');
+  const [payDate, setPayDate] = useState(today());
   const [showPay, setShowPay] = useState(false);
   const [showPin, setShowPin] = useState(false);
 
-  const myLedger = useMemo(() => ledger.filter((l) => l.employee_id === id).slice(0, 40), [ledger, id]);
+  const allMyLedger = useMemo(() => ledger.filter((l) => l.employee_id === id), [ledger, id]);
+  const myLedger = useMemo(() => allMyLedger.slice(0, 40), [allMyLedger]);
+
+  // Advance given since the last salary payment (this period's fresh advance).
+  const lastSalaryDate = useMemo(
+    () => allMyLedger.filter((l) => l.category === 'Salary').map((l) => l.date).sort().pop(),
+    [allMyLedger],
+  );
+  const advSinceSalary = useMemo(
+    () => allMyLedger
+      .filter((l) => l.category === 'Advance_Payment' && (!lastSalaryDate || l.date >= lastSalaryDate))
+      .reduce((s, l) => s + (l.advance_payment || 0), 0),
+    [allMyLedger, lastSalaryDate],
+  );
   const myAtt = useMemo(() => attendance.filter((a) => a.employee_id === id), [attendance, id]);
 
   if (!emp) return (
@@ -38,16 +52,16 @@ export const EmployeeDetail: React.FC = () => {
   const sp = Math.max(0, emp.total_salary - emp.salary_given);
 
   const open = (m: 'advance' | 'recover' | 'salary') => {
-    setModal(m); setAmount(''); setNote(''); setMethod('Cash'); setShowPay(false);
+    setModal(m); setAmount(''); setNote(''); setMethod('Cash'); setShowPay(false); setPayDate(today());
     setWeekly(String(emp.weekly_recovery || ''));
   };
 
   const submit = () => {
     const amt = Number(amount);
     if (!amt || amt <= 0) return;
-    if (modal === 'advance') giveAdvance(emp.employee_id, amt, method, note, Number(weekly) || 0);
-    if (modal === 'recover') recoverAdvance(emp.employee_id, amt, note);
-    if (modal === 'salary') paySalary(emp.employee_id, amt, null, method);
+    if (modal === 'advance') giveAdvance(emp.employee_id, amt, method, note, Number(weekly) || 0, payDate);
+    if (modal === 'recover') recoverAdvance(emp.employee_id, amt, note, payDate);
+    if (modal === 'salary') paySalary(emp.employee_id, amt, null, method, payDate);
     if (method === 'UPI' && modal !== 'recover') setShowPay(true);
     else setModal(null);
   };
@@ -132,12 +146,14 @@ export const EmployeeDetail: React.FC = () => {
                 const amt = l.total_amount_given || l.salary_payment_amount || l.advance_payment || l.advance_recovery || 0;
                 const tone = l.category === 'Salary' ? 'green' : l.category === 'Advance_Recovery' ? 'blue' : 'amber';
                 return (
-                  <div key={l.id} className="flex items-center gap-3 py-2.5">
+                  <div key={l.id} className="flex items-center gap-3 py-2.5 group">
                     <div className="flex-1 min-w-0">
                       <Badge tone={tone as any}>{l.category.replace(/_/g, ' ')}</Badge>
                       <div className="text-xs text-slate-400 mt-1">{fmtDate(l.date)} · {l.method || 'Cash'}{l.remark ? ` · ${l.remark}` : ''}</div>
                     </div>
                     <span className="text-sm font-bold text-slate-700">{inr(amt)}</span>
+                    <button onClick={() => { if (confirm(`Delete this ${l.category.replace(/_/g, ' ')} of ${inr(amt)}? This reverses the balance.`)) deleteLedgerEntry(l.id); }}
+                      className="p-1.5 rounded-lg text-rose-300 hover:bg-rose-50 hover:text-rose-500 opacity-0 group-hover:opacity-100" title="Delete"><Trash2 size={14} /></button>
                   </div>
                 );
               })}
@@ -176,9 +192,20 @@ export const EmployeeDetail: React.FC = () => {
         ) : (
           <div className="space-y-3">
             {modal === 'recover' && <div className="text-sm text-slate-500">Current advance pending: <b className="text-rose-600">{inr(ap)}</b></div>}
-            <Field label="Amount (₹)">
-              <input type="number" autoFocus className="input text-lg" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" />
-            </Field>
+            {modal === 'salary' && (
+              <div className="rounded-xl bg-amber-50 text-amber-700 p-3 text-sm">
+                Advance given since last salary{lastSalaryDate ? ` (${fmtDate(lastSalaryDate)})` : ''}: <b>{inr(advSinceSalary)}</b>
+                <div className="text-xs text-amber-600/80 mt-0.5">Total advance still due: {inr(ap)}</div>
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Amount (₹)">
+                <input type="number" autoFocus className="input text-lg" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" />
+              </Field>
+              <Field label="Date">
+                <input type="date" className="input" value={payDate} onChange={(e) => setPayDate(e.target.value)} />
+              </Field>
+            </div>
             {modal !== 'recover' && (
               <Field label="Payment Method">
                 <div className="grid grid-cols-2 gap-2">

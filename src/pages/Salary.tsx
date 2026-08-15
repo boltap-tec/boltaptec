@@ -24,6 +24,7 @@ const rowStatus = (d: SalaryDetail): 'Paid' | 'Partial' | 'Pending' => {
 
 export const Salary: React.FC = () => {
   const { employees, attendance, postings, salaryDetails, generatePayroll, paySalaryDetail, deletePosting, settings, ledger } = useData();
+  const [payDate, setPayDate] = useState(today());
   const [from, setFrom] = useState(weekAgo());
   const [to, setTo] = useState(today());
   const [tab, setTab] = useState<'generate' | 'history'>('generate');
@@ -66,7 +67,16 @@ export const Salary: React.FC = () => {
     setPayRow(d);
     setRecover(String(suggested));
     setCashNow(String(Math.max(0, remaining - suggested)));
-    setMethod('Cash'); setPaid(null); setShowUpi(false);
+    setMethod('Cash'); setPaid(null); setShowUpi(false); setPayDate(today());
+  };
+
+  // Advance given to this worker since their last salary payment.
+  const advSinceSalary = (employeeId: string) => {
+    const mine = ledger.filter((l) => l.employee_id === employeeId);
+    const lastSal = mine.filter((l) => l.category === 'Salary').map((l) => l.date).sort().pop();
+    const amt = mine.filter((l) => l.category === 'Advance_Payment' && (!lastSal || l.date >= lastSal))
+      .reduce((s, l) => s + (l.advance_payment || 0), 0);
+    return { amt, lastSal };
   };
 
   const confirmPay = () => {
@@ -75,7 +85,7 @@ export const Salary: React.FC = () => {
     const rec = Math.max(0, Math.min(Number(recover) || 0, advancePending(emp)));
     const cash = Math.max(0, Number(cashNow) || 0);
     if (rec + cash <= 0) return;
-    paySalaryDetail(payRow.id, rec, cash, method);
+    paySalaryDetail(payRow.id, rec, cash, method, payDate);
     const updated = useData.getState().salaryDetails.find((x) => x.id === payRow.id)!;
     setPaid({ emp: useData.getState().employees.find((e) => e.employee_id === payRow.employee_id), recovery: rec, cash, method, row: updated });
     if (method === 'UPI' && emp.upi_id) setShowUpi(true);
@@ -254,14 +264,22 @@ export const Salary: React.FC = () => {
           const rec = Math.max(0, Math.min(Number(recover) || 0, ap));
           const cash = Math.max(0, Number(cashNow) || 0);
           const afterRem = Math.max(0, rem - rec - cash);
+          const adv = advSinceSalary(payRow.employee_id);
           return (
             <div className="space-y-3">
+              <div className="rounded-xl bg-amber-50 text-amber-700 p-3 text-sm">
+                Advance given since last salary{adv.lastSal ? ` (${fmtDate(adv.lastSal)})` : ''}: <b>{inr(adv.amt)}</b>
+                <div className="text-xs text-amber-600/80 mt-0.5">Total advance still due: {inr(ap)}</div>
+              </div>
               <div className="rounded-xl bg-slate-50 p-3 space-y-1.5 text-sm">
                 <div className="flex justify-between"><span className="text-slate-500">Remaining salary</span><b>{inr(rem)}</b></div>
                 <div className="flex justify-between"><span className="text-slate-500">Advance recovered now</span><b className="text-rose-600">−{inr(rec)}</b></div>
                 <div className="flex justify-between"><span className="text-slate-500">Paying cash now</span><b className="text-emerald-600 text-base">{inr(cash)}</b></div>
                 {afterRem > 0 && <div className="flex justify-between border-t border-slate-200 pt-1.5"><span className="text-amber-600 font-semibold">Will still remain</span><b className="text-amber-600">{inr(afterRem)}</b></div>}
               </div>
+              <Field label="Payment Date">
+                <input type="date" className="input" value={payDate} onChange={(e) => setPayDate(e.target.value)} />
+              </Field>
               {ap > 0 && (
                 <Field label={`Advance to recover — you decide (due ${inr(ap)})`} hint="How much advance to take back from this salary.">
                   <input type="number" inputMode="numeric" className="input" value={recover}

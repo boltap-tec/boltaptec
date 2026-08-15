@@ -101,6 +101,9 @@ export const Settings: React.FC = () => {
           <Field label="Standard Hours / Day">
             <input type="number" className="input" value={form.standard_hours} onChange={(e) => setForm({ ...form, standard_hours: Number(e.target.value) })} />
           </Field>
+          <Field label="Lunch / Break Hours" hint="Unpaid break auto-deducted from each shift (editable per entry).">
+            <input type="number" step="0.5" className="input" value={form.lunch_hours} onChange={(e) => setForm({ ...form, lunch_hours: Number(e.target.value) })} />
+          </Field>
           <Field label="Admin PIN (4 digits)" hint="Used to log in as Admin.">
             <input inputMode="numeric" maxLength={4} className="input tracking-widest" value={form.admin_pin} onChange={(e) => setForm({ ...form, admin_pin: e.target.value.replace(/\D/g, '') })} placeholder="1234" />
           </Field>

@@ -27,14 +27,15 @@ interface DataState {
 
   // attendance
   addAttendance: (a: Omit<Attendance, 'id'>) => void;
-  updateAttendance: (id: string, patch: { date?: string; time_in?: string; time_out?: string }) => void;
+  updateAttendance: (id: string, patch: { date?: string; time_in?: string; time_out?: string; lunch_hours?: number }) => void;
   deleteAttendance: (id: string) => void;
   markIn: (employeeId: string) => { ok: boolean; msg: string };
   markOut: (employeeId: string) => { ok: boolean; msg: string };
 
   // advances
-  giveAdvance: (employeeId: string, amount: number, method: 'Cash' | 'UPI', note?: string, weeklyRecovery?: number) => void;
-  recoverAdvance: (employeeId: string, amount: number, note?: string) => void;
+  giveAdvance: (employeeId: string, amount: number, method: 'Cash' | 'UPI', note?: string, weeklyRecovery?: number, date?: string) => void;
+  recoverAdvance: (employeeId: string, amount: number, note?: string, date?: string) => void;
+  deleteLedgerEntry: (id: string) => void;
 
   // advance requests
   createRequest: (r: Omit<AdvanceRequest, 'id' | 'status' | 'created_at' | 'decided_at' | 'decided_by' | 'admin_note'>) => void;
@@ -45,13 +46,13 @@ interface DataState {
   updateRequest: (id: string, patch: Partial<Pick<AdvanceRequest, 'amount' | 'reason' | 'method'>>) => void;
 
   // salary
-  paySalary: (employeeId: string, amount: number, salaryId: string | null, method: 'Cash' | 'UPI') => void;
+  paySalary: (employeeId: string, amount: number, salaryId: string | null, method: 'Cash' | 'UPI', date?: string) => void;
   // Generate a payroll for a period → creates a posting + a payment-grid row per
   // employee (from their UNPAID attendance days), claims those days, and posts it.
   generatePayroll: (from: string, to: string) => SalaryPosting | null;
   // Pay one grid row (recover advance + salary cash, full or partial). The row
   // stays payable until fully settled.
-  paySalaryDetail: (detailId: string, recovery: number, cash: number, method: 'Cash' | 'UPI') => void;
+  paySalaryDetail: (detailId: string, recovery: number, cash: number, method: 'Cash' | 'UPI', date?: string) => void;
   deletePosting: (postingId: string) => void;
 
   resetAll: () => void;
@@ -123,9 +124,11 @@ export const useData = create<DataState>()(
             if (a.id !== id) return a;
             const time_in = patch.time_in ?? a.time_in;
             const time_out = patch.time_out ?? a.time_out;
-            const hrs = time_in && time_out ? hoursBetween(time_in, time_out) : a.total_hours;
-            const { salary_amount, extra_time } = computeAttendanceSalary(hrs, a.daily_wage);
-            return { ...a, date: patch.date ?? a.date, time_in, time_out, total_hours: hrs, salary_amount, extra_time };
+            const lunch = patch.lunch_hours ?? a.lunch_hours ?? 0;
+            const gross = time_in && time_out ? hoursBetween(time_in, time_out) : a.total_hours + (a.lunch_hours || 0);
+            const net = Math.max(0, gross - lunch);
+            const { salary_amount, extra_time } = computeAttendanceSalary(net, a.daily_wage);
+            return { ...a, date: patch.date ?? a.date, time_in, time_out, total_hours: net, salary_amount, extra_time, lunch_hours: lunch };
           }),
         }),
 
@@ -159,21 +162,23 @@ export const useData = create<DataState>()(
         );
         if (!open) return { ok: false, msg: 'You have not marked in yet today.' };
         const now = new Date().toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase();
-        const hrs = hoursBetween(open.time_in || now, now);
+        const gross = hoursBetween(open.time_in || now, now);
+        const lunch = get().settings.lunch_hours || 0;
+        const hrs = Math.max(0, gross - lunch);
         const { salary_amount, extra_time } = computeAttendanceSalary(hrs, open.daily_wage);
         set({
           attendance: get().attendance.map((a) =>
-            a.id === open.id ? { ...a, time_out: now, total_hours: hrs, salary_amount, extra_time } : a,
+            a.id === open.id ? { ...a, time_out: now, total_hours: hrs, salary_amount, extra_time, lunch_hours: lunch } : a,
           ),
         });
-        return { ok: true, msg: `Marked OUT at ${now} · ${hrs}h` };
+        return { ok: true, msg: `Marked OUT at ${now} · ${hrs}h (−${lunch}h lunch)` };
       },
 
-      giveAdvance: (employeeId, amount, method, note, weeklyRecovery) => {
+      giveAdvance: (employeeId, amount, method, note, weeklyRecovery, date) => {
         const emp = get().employees.find((e) => e.employee_id === employeeId);
         if (!emp) return;
         const entry: LedgerEntry = {
-          id: uid('led_'), date: today(), category: 'Advance_Payment',
+          id: uid('led_'), date: date || today(), category: 'Advance_Payment',
           employee_id: employeeId, employee_name: emp.name,
           description: 'Advance_Payment', salary_payment_amount: null,
           advance_payment: amount, advance_recovery: null,
@@ -187,11 +192,11 @@ export const useData = create<DataState>()(
         });
       },
 
-      recoverAdvance: (employeeId, amount, note) => {
+      recoverAdvance: (employeeId, amount, note, date) => {
         const emp = get().employees.find((e) => e.employee_id === employeeId);
         if (!emp) return;
         const entry: LedgerEntry = {
-          id: uid('led_'), date: today(), category: 'Advance_Recovery',
+          id: uid('led_'), date: date || today(), category: 'Advance_Recovery',
           employee_id: employeeId, employee_name: emp.name,
           description: 'Advance_Recovery', salary_payment_amount: null,
           advance_payment: null, advance_recovery: amount,
@@ -202,6 +207,23 @@ export const useData = create<DataState>()(
         get().updateEmployee(employeeId, {
           advance_recovered: emp.advance_recovered + amount,
         });
+      },
+
+      // Delete a transaction and reverse its effect on the employee's balances.
+      deleteLedgerEntry: (id) => {
+        const l = get().ledger.find((x) => x.id === id);
+        if (!l) return;
+        const emp = get().employees.find((e) => e.employee_id === l.employee_id);
+        if (emp) {
+          if (l.category === 'Advance_Payment') {
+            get().updateEmployee(emp.employee_id, { total_advance_given: Math.max(0, emp.total_advance_given - (l.advance_payment || 0)) });
+          } else if (l.category === 'Advance_Recovery') {
+            get().updateEmployee(emp.employee_id, { advance_recovered: Math.max(0, emp.advance_recovered - (l.advance_recovery || 0)) });
+          } else if (l.category === 'Salary') {
+            get().updateEmployee(emp.employee_id, { salary_given: Math.max(0, emp.salary_given - (l.salary_payment_amount || 0)) });
+          }
+        }
+        set({ ledger: get().ledger.filter((x) => x.id !== id) });
       },
 
       createRequest: (r) =>
@@ -238,11 +260,11 @@ export const useData = create<DataState>()(
           ),
         }),
 
-      paySalary: (employeeId, amount, salaryId, method) => {
+      paySalary: (employeeId, amount, salaryId, method, date) => {
         const emp = get().employees.find((e) => e.employee_id === employeeId);
         if (!emp) return;
         const entry: LedgerEntry = {
-          id: uid('led_'), date: today(), category: 'Salary',
+          id: uid('led_'), date: date || today(), category: 'Salary',
           employee_id: employeeId, employee_name: emp.name,
           description: 'Salary', salary_payment_amount: amount,
           advance_payment: null, advance_recovery: null,
@@ -300,7 +322,7 @@ export const useData = create<DataState>()(
         return posting;
       },
 
-      paySalaryDetail: (detailId, recovery, cash, method) => {
+      paySalaryDetail: (detailId, recovery, cash, method, payDate) => {
         const d = get().salaryDetails.find((x) => x.id === detailId);
         if (!d) return;
         const emp = get().employees.find((e) => e.employee_id === d.employee_id);
@@ -308,7 +330,7 @@ export const useData = create<DataState>()(
         const rec = Math.max(0, Math.min(recovery, advancePending(emp)));
         const c = Math.max(0, cash);
         if (rec + c <= 0) return;
-        const date = today();
+        const date = payDate || today();
         const salaryId = `${d.from_date}_${d.to_date}`;
         const entries: LedgerEntry[] = [];
         if (c > 0) entries.push({

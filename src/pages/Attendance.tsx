@@ -9,12 +9,13 @@ import type { Attendance as AttRow } from '../types';
 interface MarkedSummary { name: string; hours: number; ot: number; salary: number; shifts: number; }
 
 export const Attendance: React.FC = () => {
-  const { employees, attendance, addAttendance, updateAttendance, deleteAttendance } = useData();
+  const { employees, attendance, addAttendance, updateAttendance, deleteAttendance, settings } = useData();
   const [modal, setModal] = useState(false);
   const [date, setDate] = useState(today());
   const [ids, setIds] = useState<string[]>([]);
   const [timeIn, setTimeIn] = useState('09:00');   // 24h for <input type="time">
   const [timeOut, setTimeOut] = useState('18:00');
+  const [lunch, setLunch] = useState(settings.lunch_hours ?? 1);
   const [filterDate, setFilterDate] = useState('');
   const [q, setQ] = useState('');
   const [summary, setSummary] = useState<MarkedSummary[] | null>(null);
@@ -22,18 +23,21 @@ export const Attendance: React.FC = () => {
   const [eDate, setEDate] = useState('');
   const [eIn, setEIn] = useState('');
   const [eOut, setEOut] = useState('');
+  const [eLunch, setELunch] = useState(0);
 
   const openEdit = (a: AttRow) => {
-    setEditRow(a); setEDate(a.date); setEIn(to24h(a.time_in)); setEOut(to24h(a.time_out));
+    setEditRow(a); setEDate(a.date); setEIn(to24h(a.time_in)); setEOut(to24h(a.time_out)); setELunch(a.lunch_hours ?? 0);
   };
   const saveEdit = () => {
     if (!editRow) return;
-    updateAttendance(editRow.id, { date: eDate, time_in: to12h(eIn), time_out: eOut ? to12h(eOut) : editRow.time_out || '' });
+    updateAttendance(editRow.id, { date: eDate, time_in: to12h(eIn), time_out: eOut ? to12h(eOut) : editRow.time_out || '', lunch_hours: Number(eLunch) || 0 });
     setEditRow(null);
   };
-  const eHours = eIn && eOut ? hoursBetween(eIn, eOut) : 0;
+  const eGross = eIn && eOut ? hoursBetween(eIn, eOut) : 0;
+  const eHours = Math.max(0, eGross - (Number(eLunch) || 0));
 
-  const hours = hoursBetween(timeIn, timeOut);
+  const grossHours = hoursBetween(timeIn, timeOut);
+  const hours = Math.max(0, grossHours - (Number(lunch) || 0)); // net paid hours
 
   // Employees already marked on the chosen date — hidden from the picker so
   // nobody gets marked twice in one day.
@@ -72,6 +76,7 @@ export const Attendance: React.FC = () => {
         date, employee_id: id, employee_name: e.name,
         time_in: tIn, time_out: tOut, total_hours: hours,
         salary_amount, daily_wage: e.daily_wage, ref_names: refNames, extra_time,
+        lunch_hours: Number(lunch) || 0,
       });
       const shifts = attendance.filter((a) => a.employee_id === id && a.date === date).length + 1;
       result.push({ name: e.name, hours, ot: extra_time, salary: salary_amount, shifts });
@@ -90,7 +95,7 @@ export const Attendance: React.FC = () => {
           <h1 className="text-2xl font-extrabold text-slate-800">Attendance</h1>
           <p className="text-slate-400 text-sm">{attendance.length} records · hours auto-calculate salary</p>
         </div>
-        <button onClick={() => { setModal(true); setDate(today()); setIds([]); }} className="btn-primary">
+        <button onClick={() => { setModal(true); setDate(today()); setIds([]); setLunch(settings.lunch_hours ?? 1); }} className="btn-primary">
           <Plus size={18} /> <span className="hidden sm:inline">Mark</span>
         </button>
       </div>
@@ -160,8 +165,13 @@ export const Attendance: React.FC = () => {
               </div>
             </Field>
           </div>
-          <div className="rounded-xl bg-brand-50 text-brand-700 px-3 py-2 text-sm font-semibold flex items-center justify-between">
-            <span className="flex items-center gap-1.5"><Clock size={15} /> {hours > 0 ? `${hours} hours (${to12h(timeIn)} – ${to12h(timeOut)})` : 'Enter valid times'}</span>
+          <Field label="Lunch / Break (hours) — deducted from shift">
+            <input type="number" step="0.5" min="0" className="input" value={lunch} onChange={(e) => setLunch(Number(e.target.value))} />
+          </Field>
+          <div className="rounded-xl bg-brand-50 text-brand-700 px-3 py-2 text-sm font-semibold flex items-center justify-between flex-wrap gap-1">
+            <span className="flex items-center gap-1.5">
+              <Clock size={15} /> {grossHours > 0 ? `${grossHours}h − ${Number(lunch) || 0}h lunch = ${hours}h paid` : 'Enter valid times'}
+            </span>
             {hours > STANDARD_HOURS && <span>OT: {(hours - STANDARD_HOURS).toFixed(1)}h</span>}
           </div>
           <div>
@@ -258,8 +268,11 @@ export const Attendance: React.FC = () => {
               </div>
             </Field>
           </div>
-          <div className="rounded-xl bg-brand-50 text-brand-700 px-3 py-2 text-sm font-semibold flex items-center justify-between">
-            <span className="flex items-center gap-1.5"><Clock size={15} /> {eHours > 0 ? `${eHours} hours` : 'Enter valid times'}</span>
+          <Field label="Lunch / Break (hours)">
+            <input type="number" step="0.5" min="0" className="input" value={eLunch} onChange={(e) => setELunch(Number(e.target.value))} />
+          </Field>
+          <div className="rounded-xl bg-brand-50 text-brand-700 px-3 py-2 text-sm font-semibold flex items-center justify-between flex-wrap gap-1">
+            <span className="flex items-center gap-1.5"><Clock size={15} /> {eGross > 0 ? `${eGross}h − ${Number(eLunch) || 0}h = ${eHours}h paid` : 'Enter valid times'}</span>
             {eHours > STANDARD_HOURS && <span>OT: {(eHours - STANDARD_HOURS).toFixed(1)}h</span>}
           </div>
           {editRow && eHours > 0 && (

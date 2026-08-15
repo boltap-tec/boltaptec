@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { BookOpen, Search, Download, HandCoins, Banknote, TrendingDown } from 'lucide-react';
+import { BookOpen, Search, Download, HandCoins, Banknote, TrendingDown, Trash2 } from 'lucide-react';
 import { useData } from '../store/useData';
 import { Card, Avatar, Badge, EmptyState } from '../components/ui';
 import { inr, fmtDate } from '../lib/format';
@@ -12,7 +12,14 @@ const catMeta: Record<LedgerCategory, { tone: any; icon: React.ReactNode; label:
 };
 
 export const Ledger: React.FC = () => {
-  const { ledger } = useData();
+  const { ledger, deleteLedgerEntry } = useData();
+
+  const removeEntry = (l: any) => {
+    const amt = l.total_amount_given || l.salary_payment_amount || l.advance_payment || l.advance_recovery || 0;
+    if (confirm(`Delete this ${l.category.replace(/_/g, ' ')} of ₹${amt} for ${l.employee_name}?\n\nThis removes it from the ledger and reverses the balance.`)) {
+      deleteLedgerEntry(l.id);
+    }
+  };
   const [q, setQ] = useState('');
   const [cat, setCat] = useState<'all' | LedgerCategory>('all');
 
@@ -86,6 +93,7 @@ export const Ledger: React.FC = () => {
                 </div>
                 <Badge tone={m.tone}>{m.icon} {m.label}</Badge>
                 <span className={`text-sm font-bold w-24 text-right ${l.category === 'Advance_Recovery' ? 'text-sky-600' : l.category === 'Salary' ? 'text-emerald-600' : 'text-amber-600'}`}>{inr(amt)}</span>
+                <button onClick={() => removeEntry(l)} className="p-1.5 rounded-lg text-rose-300 hover:bg-rose-50 hover:text-rose-500" title="Delete transaction"><Trash2 size={15} /></button>
               </div>
             );
           })}

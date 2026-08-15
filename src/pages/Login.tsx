@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Zap, Shield, User, Delete, ArrowLeft } from 'lucide-react';
+import { Zap, Shield, User, Delete, ArrowLeft, Fingerprint } from 'lucide-react';
 import { useAuth } from '../store/useAuth';
 import { useData } from '../store/useData';
 import { cloudState } from '../lib/cloud';
+import { biometricUnlock, biometricSupported } from '../lib/biometric';
 
 const Keypad: React.FC<{ onKey: (k: string) => void; onBack: () => void }> = ({ onKey, onBack }) => (
   <div className="grid grid-cols-3 gap-2.5 mt-4">
@@ -43,12 +44,48 @@ export const Login: React.FC = () => {
   const [pin, setPin] = useState('');
   const [worker, setWorker] = useState<ReturnType<typeof matchPhone>>(null);
   const [error, setError] = useState('');
+  const [pickName, setPickName] = useState(false);
+  const [bioOk, setBioOk] = useState(false);
+
+  useEffect(() => { biometricSupported().then(setBioOk); }, []);
 
   function matchPhone(p: string) {
-    return employees.find((e) => (e.phone || '').replace(/\D/g, '').endsWith(p.replace(/\D/g, ''))) || null;
+    const digits = p.replace(/\D/g, '');
+    if (!digits) return null;
+    return employees.find((e) => (e.phone || '').replace(/\D/g, '').endsWith(digits)) || null;
   }
 
-  const reset = () => { setStep('phone'); setPhone(''); setPin(''); setWorker(null); setError(''); };
+  const reset = () => { setStep('phone'); setPhone(''); setPin(''); setWorker(null); setError(''); setPickName(false); };
+
+  // Physical keyboard: type digits, backspace to delete, Enter to continue.
+  useEffect(() => {
+    if (mode === 'choose') return;
+    const onPhone = mode === 'worker' && step === 'phone';
+    const handler = (e: KeyboardEvent) => {
+      if (e.key >= '0' && e.key <= '9') {
+        e.preventDefault();
+        onPhone ? onPhoneKey(e.key) : onPinKey(e.key);
+      } else if (e.key === 'Backspace') {
+        e.preventDefault();
+        onPhone ? (setPhone((p) => p.slice(0, -1)), setError('')) : (setPin((p) => p.slice(0, -1)), setError(''));
+      } else if (e.key === 'Enter' && onPhone) {
+        continuePhone();
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [mode, step, phone, pin, worker, employees, settings]);
+
+  const useFingerprint = async () => {
+    try {
+      const uid = mode === 'admin' ? 'admin' : worker?.employee_id || '';
+      const label = mode === 'admin' ? 'Admin' : worker?.name || '';
+      const ok = await biometricUnlock(uid, label);
+      if (!ok) { setError('Fingerprint not recognised — use your PIN.'); return; }
+      if (mode === 'admin') { loginAdmin('Admin'); navigate('/'); }
+      else if (worker) { loginEmployee(worker.employee_id, worker.name); navigate('/me'); }
+    } catch (e: any) { setError(e?.message || 'Fingerprint unavailable — use your PIN.'); }
+  };
 
   const onPhoneKey = (k: string) => {
     setError('');
@@ -125,6 +162,9 @@ export const Login: React.FC = () => {
               <Dots len={pin.length} />
               {error && <p className="text-center text-rose-500 text-sm font-semibold mt-2">{error}</p>}
               <Keypad onKey={onPinKey} onBack={() => { setPin(pin.slice(0, -1)); setError(''); }} />
+              {bioOk && (
+                <button onClick={useFingerprint} className="btn-ghost w-full mt-3"><Fingerprint size={18} /> Use fingerprint</button>
+              )}
             </div>
           )}
 
@@ -138,8 +178,22 @@ export const Login: React.FC = () => {
               </div>
               <div className="text-center text-2xl font-extrabold tracking-widest text-slate-700 h-9">{phone || <span className="text-slate-300">••••••••••</span>}</div>
               {error && <p className="text-center text-rose-500 text-sm font-semibold mt-1">{error}</p>}
-              <Keypad onKey={onPhoneKey} onBack={() => { setPhone(phone.slice(0, -1)); setError(''); }} />
-              <button onClick={continuePhone} disabled={phone.length < 4} className="btn-success w-full mt-3">Continue</button>
+              {pickName ? (
+                <select className="input mt-2" value={worker?.employee_id || ''}
+                  onChange={(e) => { const w = employees.find((x) => x.employee_id === e.target.value) || null; if (w) { setWorker(w); setStep('pin'); setPin(''); setError(''); } }}>
+                  <option value="">Select your name…</option>
+                  {employees.map((e) => <option key={e.employee_id} value={e.employee_id}>{e.name}</option>)}
+                </select>
+              ) : (
+                <>
+                  <Keypad onKey={onPhoneKey} onBack={() => { setPhone(phone.slice(0, -1)); setError(''); }} />
+                  <button onClick={continuePhone} disabled={phone.length < 4} className="btn-success w-full mt-3">Continue</button>
+                </>
+              )}
+              <button onClick={() => { setPickName((v) => !v); setError(''); }} className="text-brand-600 text-xs font-semibold w-full text-center mt-3">
+                {pickName ? 'Enter phone number instead' : "Can't match your number? Pick your name"}
+              </button>
+              <p className="text-center text-slate-300 text-[11px] mt-2">Tip: you can also type on your keyboard</p>
             </div>
           )}
 
@@ -154,6 +208,9 @@ export const Login: React.FC = () => {
               <Dots len={pin.length} />
               {error && <p className="text-center text-rose-500 text-sm font-semibold mt-2">{error}</p>}
               <Keypad onKey={onPinKey} onBack={() => { setPin(pin.slice(0, -1)); setError(''); }} />
+              {bioOk && (
+                <button onClick={useFingerprint} className="btn-ghost w-full mt-3"><Fingerprint size={18} /> Use fingerprint</button>
+              )}
             </div>
           )}
         </div>
