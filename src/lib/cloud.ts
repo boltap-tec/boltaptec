@@ -86,6 +86,7 @@ function diff(prev: AnyRow[], next: AnyRow[], key: string) {
 let prev = snapshot();
 let timer: any;
 let applyingRealtime = false;
+let started = false; // guard: set up sync/realtime only once (StrictMode calls init twice)
 
 async function flush() {
   const next = snapshot();
@@ -141,6 +142,7 @@ function applyRealtime(table: string, evt: string, row: AnyRow | null, oldRow: A
 
 // Live sync: push other devices' inserts/updates/deletes into this app instantly.
 function startRealtime() {
+  supabase!.removeAllChannels(); // avoid duplicate channel on re-init
   const ch = supabase!.channel('boltap-live');
   ['employees', 'attendance', 'ledger', 'salary_details', 'salary_postings', 'advance_requests', 'settings']
     .forEach((table) => {
@@ -164,8 +166,11 @@ export async function initCloud(): Promise<{ mode: 'cloud' | 'local'; error?: st
     } else {
       await pullAll();          // returning: load cloud data into the app
     }
-    startSync();
-    startRealtime();
+    if (!started) {
+      started = true;
+      startSync();
+      try { startRealtime(); } catch (e) { console.error('[cloud] realtime setup failed (sync still works):', e); }
+    }
     cloudState.mode = 'cloud';
     return { mode: 'cloud' };
   } catch (e: any) {
