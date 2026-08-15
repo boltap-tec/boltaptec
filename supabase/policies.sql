@@ -1,20 +1,22 @@
 -- BoltAp — grant the publishable/anon key full access (DEMO).
--- Run this ONCE in the Supabase SQL editor. Disables RLS and grants table
--- privileges, so the app can read & write with its public key.
+-- Robust version: `if exists` so a missing table can't abort the whole script,
+-- and blanket grants so every current & future table is covered.
+-- Run this ONCE in the Supabase SQL editor after schema.sql.
 --
 -- ⚠️ DEMO SECURITY: open access. Tighten (RLS + real auth) before production.
 
-do $$
-declare t text;
-begin
-  foreach t in array array[
-    'employees','attendance','ledger','salary_details',
-    'salary_postings','advance_requests','settings'
-  ]
-  loop
-    execute format('alter table public.%I disable row level security;', t);
-    execute format('grant all privileges on public.%I to anon, authenticated;', t);
-  end loop;
-end $$;
+alter table if exists public.employees        disable row level security;
+alter table if exists public.attendance       disable row level security;
+alter table if exists public.ledger           disable row level security;
+alter table if exists public.salary_details   disable row level security;
+alter table if exists public.salary_postings  disable row level security;
+alter table if exists public.advance_requests disable row level security;
+alter table if exists public.settings         disable row level security;
 
 grant usage on schema public to anon, authenticated;
+grant all on all tables    in schema public to anon, authenticated;
+grant all on all sequences in schema public to anon, authenticated;
+
+-- make future tables accessible too
+alter default privileges in schema public grant all on tables    to anon, authenticated;
+alter default privileges in schema public grant all on sequences to anon, authenticated;

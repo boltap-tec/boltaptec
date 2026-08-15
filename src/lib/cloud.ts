@@ -14,6 +14,13 @@ const TABLES = [
 
 export const cloudEnabled = isSupabaseConfigured;
 
+// Live status the UI can read (set by initCloud). Not reactive, but the app
+// gates rendering on initCloud finishing, so it's accurate by first paint.
+export const cloudState: { mode: 'cloud' | 'local' | 'connecting'; error: string } = {
+  mode: cloudEnabled ? 'connecting' : 'local',
+  error: '',
+};
+
 type AnyRow = Record<string, any>;
 
 async function fetchAll() {
@@ -117,9 +124,12 @@ export async function initCloud(): Promise<{ mode: 'cloud' | 'local'; error?: st
       await pullAll();          // returning: load cloud data into the app
     }
     startSync();
+    cloudState.mode = 'cloud';
     return { mode: 'cloud' };
   } catch (e: any) {
     console.error('[cloud] init failed, staying local:', e);
-    return { mode: 'local', error: e?.message || String(e) };
+    cloudState.mode = 'local';
+    cloudState.error = e?.message || String(e);
+    return { mode: 'local', error: cloudState.error };
   }
 }

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Zap, Shield, User, Delete, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../store/useAuth';
 import { useData } from '../store/useData';
+import { cloudState } from '../lib/cloud';
 
 const Keypad: React.FC<{ onKey: (k: string) => void; onBack: () => void }> = ({ onKey, onBack }) => (
   <div className="grid grid-cols-3 gap-2.5 mt-4">
@@ -156,7 +157,9 @@ export const Login: React.FC = () => {
             </div>
           )}
         </div>
-        <p className="text-center text-white/50 text-xs mt-4">Local demo · your data stays on this device</p>
+        <p className="text-center text-white/50 text-xs mt-4">
+          {cloudState.mode === 'cloud' ? '☁ Synced to cloud · data available on all devices' : 'Local mode · data on this device'}
+        </p>
       </div>
     </div>
   );

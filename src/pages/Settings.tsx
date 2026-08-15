@@ -4,7 +4,7 @@ import { useData } from '../store/useData';
 import { Card, Field, Badge } from '../components/ui';
 import { isValidVpa } from '../lib/upi';
 import { downloadBackup } from '../lib/backup';
-import { cloudEnabled, pushAll, pullAll } from '../lib/cloud';
+import { cloudEnabled, cloudState, pushAll, pullAll } from '../lib/cloud';
 
 export const Settings: React.FC = () => {
   const { settings, employees, attendance, ledger, resetAll } = useData();
@@ -64,8 +64,15 @@ export const Settings: React.FC = () => {
           <h3 className="font-bold text-slate-700 flex items-center gap-2">
             {cloudEnabled ? <Cloud size={18} className="text-emerald-500" /> : <CloudOff size={18} className="text-slate-400" />} Cloud Sync
           </h3>
-          <Badge tone={cloudEnabled ? 'green' : 'slate'}>{cloudEnabled ? 'Connected to Supabase' : 'Local only'}</Badge>
+          <Badge tone={cloudState.mode === 'cloud' ? 'green' : cloudEnabled ? 'amber' : 'slate'}>
+            {cloudState.mode === 'cloud' ? 'Connected to Supabase' : cloudEnabled ? 'Configured — not connected' : 'Local only'}
+          </Badge>
         </div>
+        {cloudEnabled && cloudState.mode !== 'cloud' && cloudState.error && (
+          <div className="rounded-xl bg-rose-50 text-rose-700 p-3 text-sm">
+            Connection error: {cloudState.error}. Run <code>supabase/policies.sql</code> in the Supabase SQL editor, then reload.
+          </div>
+        )}
         {cloudEnabled ? (
           <>
             <p className="text-sm text-slate-500">Data syncs automatically to your Supabase cloud on every change, across all phones.</p>
