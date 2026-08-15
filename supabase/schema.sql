@@ -109,8 +109,8 @@ create table if not exists settings (
   week_start     int default 6
 );
 
--- Open access policies so the app's publishable/anon key can read & write.
--- ⚠️ DEMO SECURITY — tighten with per-user policies before production.
+-- Grant the app's publishable/anon key full access (DEMO — see policies.sql).
+-- ⚠️ tighten with RLS + real auth before production.
 do $$
 declare t text;
 begin
@@ -119,8 +119,8 @@ begin
     'salary_postings','advance_requests','settings'
   ]
   loop
-    execute format('alter table public.%I enable row level security;', t);
-    execute format('drop policy if exists boltap_all on public.%I;', t);
-    execute format('create policy boltap_all on public.%I for all using (true) with check (true);', t);
+    execute format('alter table public.%I disable row level security;', t);
+    execute format('grant all privileges on public.%I to anon, authenticated;', t);
   end loop;
 end $$;
+grant usage on schema public to anon, authenticated;
