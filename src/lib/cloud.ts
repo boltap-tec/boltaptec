@@ -85,6 +85,7 @@ function diff(prev: AnyRow[], next: AnyRow[], key: string) {
 
 let prev = snapshot();
 let timer: any;
+let applyingRealtime = false;
 
 async function flush() {
   const next = snapshot();
@@ -106,9 +107,49 @@ async function flush() {
 function startSync() {
   prev = snapshot();
   useData.subscribe(() => {
+    // Changes we applied from a realtime event must not be pushed back.
+    if (applyingRealtime) { prev = snapshot(); return; }
     clearTimeout(timer);
     timer = setTimeout(flush, 700); // debounce bursts (e.g. generating payroll)
   });
+}
+
+// Merge a single row change coming from another device into the local store.
+function applyRealtime(table: string, evt: string, row: AnyRow | null, oldRow: AnyRow | null) {
+  applyingRealtime = true;
+  try {
+    if (table === 'settings') {
+      if (row) useData.setState({ settings: stripId(row) as any });
+      return;
+    }
+    const cfg = TABLES.find((t) => t.table === table);
+    if (!cfg) return;
+    const key = cfg.key;
+    const cur = (useData.getState() as any)[cfg.slice] as AnyRow[];
+    if (evt === 'DELETE') {
+      const id = oldRow?.[key];
+      useData.setState({ [cfg.slice]: cur.filter((r) => r[key] !== id) } as any);
+    } else {
+      const exists = cur.some((r) => r[key] === row![key]);
+      const next = exists ? cur.map((r) => (r[key] === row![key] ? row! : r)) : [row!, ...cur];
+      useData.setState({ [cfg.slice]: next } as any);
+    }
+  } finally {
+    applyingRealtime = false;
+  }
+}
+
+// Live sync: push other devices' inserts/updates/deletes into this app instantly.
+function startRealtime() {
+  const ch = supabase!.channel('boltap-live');
+  ['employees', 'attendance', 'ledger', 'salary_details', 'salary_postings', 'advance_requests', 'settings']
+    .forEach((table) => {
+      ch.on('postgres_changes' as any, { event: '*', schema: 'public', table }, (p: any) => {
+        try { applyRealtime(table, p.eventType, p.new, p.old); }
+        catch (e) { console.error('[cloud] realtime apply failed:', e); }
+      });
+    });
+  ch.subscribe();
 }
 
 // Called once at app start. Returns when the store reflects the cloud (or
@@ -124,6 +165,7 @@ export async function initCloud(): Promise<{ mode: 'cloud' | 'local'; error?: st
       await pullAll();          // returning: load cloud data into the app
     }
     startSync();
+    startRealtime();
     cloudState.mode = 'cloud';
     return { mode: 'cloud' };
   } catch (e: any) {
