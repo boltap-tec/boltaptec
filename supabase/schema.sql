@@ -109,5 +109,18 @@ create table if not exists settings (
   week_start     int default 6
 );
 
--- Enable Row Level Security later and add policies before going to production.
--- alter table employees enable row level security;  -- etc.
+-- Open access policies so the app's publishable/anon key can read & write.
+-- ⚠️ DEMO SECURITY — tighten with per-user policies before production.
+do $$
+declare t text;
+begin
+  foreach t in array array[
+    'employees','attendance','ledger','salary_details',
+    'salary_postings','advance_requests','settings'
+  ]
+  loop
+    execute format('alter table public.%I enable row level security;', t);
+    execute format('drop policy if exists boltap_all on public.%I;', t);
+    execute format('create policy boltap_all on public.%I for all using (true) with check (true);', t);
+  end loop;
+end $$;
