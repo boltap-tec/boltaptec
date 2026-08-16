@@ -302,6 +302,11 @@ export const useData = create<DataState>()(
           (a) => a.employee_id === employeeId && !a.time_out && a.status !== 'rejected',
         );
         if (open) return { ok: false, msg: 'You already have an open attendance — close it first.' };
+        // One attendance per day: if today's shift is already recorded, no more.
+        const todays = get().attendance.find(
+          (a) => a.employee_id === employeeId && a.date === day && a.status !== 'rejected',
+        );
+        if (todays) return { ok: false, msg: 'Attendance is already recorded for today.' };
         const now = new Date().toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase();
         const row: Attendance = {
           id: uid('att_'), date: day, employee_id: employeeId, employee_name: emp.name,

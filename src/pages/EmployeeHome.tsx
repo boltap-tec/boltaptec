@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Wallet, HandCoins, TrendingDown, Clock, Send, Banknote, Smartphone,
   ArrowRight, CheckCircle2, XCircle, Sparkles, CalendarDays,
-  LogIn, LogOut, Camera, Fingerprint, FileDown, MapPin,
+  LogIn, LogOut, Camera, Fingerprint, FileDown, MapPin, Receipt,
 } from 'lucide-react';
 import { useAuth } from '../store/useAuth';
 import { useData } from '../store/useData';
@@ -127,7 +127,9 @@ export const EmployeeHome: React.FC = () => {
           </div>
           {openRow
             ? <button onClick={doOut} disabled={locating} className="btn-danger"><LogOut size={18} /> {locating ? t('home.locating') : t('home.close')}</button>
-            : <button onClick={doIn} disabled={!deviceOk || locating} className="btn-success"><LogIn size={18} /> {locating ? t('home.locating') : t('home.open')}</button>}
+            : doneToday.length > 0
+              ? <span className="inline-flex items-center gap-1.5 text-emerald-600 font-bold text-sm px-3 py-2 rounded-xl bg-emerald-50"><CheckCircle2 size={16} /> Done today</span>
+              : <button onClick={doIn} disabled={!deviceOk || locating} className="btn-success"><LogIn size={18} /> {locating ? t('home.locating') : t('home.open')}</button>}
         </div>
         <div className="mt-3 pt-3 border-t border-slate-100 flex items-center gap-2 text-xs">
           <Fingerprint size={14} className={deviceOk ? 'text-emerald-500' : 'text-rose-500'} />
@@ -144,6 +146,18 @@ export const EmployeeHome: React.FC = () => {
             : 'Your open/close attendance goes to the admin to review & post.'}
         </div>
       </Card>
+
+      {/* Quick actions: request advance / project expense */}
+      <div className="grid grid-cols-2 gap-3">
+        <button onClick={() => setReqOpen(true)} className="card p-4 flex flex-col items-center gap-1.5 text-center hover:shadow-soft transition">
+          <div className="h-10 w-10 rounded-xl bg-brand-600 text-white grid place-items-center"><HandCoins size={20} /></div>
+          <div className="font-bold text-slate-800 text-sm">Advance Request</div>
+        </button>
+        <button onClick={() => navigate('/project-expense')} className="card p-4 flex flex-col items-center gap-1.5 text-center hover:shadow-soft transition">
+          <div className="h-10 w-10 rounded-xl bg-emerald-600 text-white grid place-items-center"><Receipt size={20} /></div>
+          <div className="font-bold text-slate-800 text-sm">Expense Request</div>
+        </button>
+      </div>
 
       {/* Hero: what you'll get next payday */}
       <Card className="p-5 bg-gradient-to-br from-brand-600 to-indigo-700 text-white border-0">
@@ -163,8 +177,8 @@ export const EmployeeHome: React.FC = () => {
         <StatCard label="Advance to repay" value={inr(ap)} sub={ap > 0 ? 'from your salary' : 'all clear 🎉'} tone="bg-amber-50 text-amber-600" icon={<HandCoins size={20} />} />
       </div>
 
-      {/* Request advance CTA */}
-      {pendingReq ? (
+      {/* Pending advance request status */}
+      {pendingReq && (
         <Card className="p-4 border-l-4 border-l-amber-400 bg-amber-50/50">
           <div className="flex items-center gap-3">
             <Clock size={22} className="text-amber-500" />
@@ -175,16 +189,6 @@ export const EmployeeHome: React.FC = () => {
             <Badge tone="amber">Pending</Badge>
           </div>
         </Card>
-      ) : (
-        <button onClick={() => setReqOpen(true)}
-          className="w-full card p-4 flex items-center gap-3 hover:shadow-soft transition text-left group">
-          <div className="h-11 w-11 rounded-xl bg-brand-600 text-white grid place-items-center"><Send size={20} /></div>
-          <div className="flex-1">
-            <div className="font-bold text-slate-800">Request an Advance</div>
-            <div className="text-sm text-slate-400">Get money now, repay from your salary</div>
-          </div>
-          <ArrowRight size={20} className="text-slate-300 group-hover:translate-x-1 transition" />
-        </button>
       )}
 
       {/* Repayment progress */}
