@@ -175,9 +175,11 @@ create table if not exists project_expenditure (
   amount        numeric not null default 0,
   remark        text,
   images        jsonb,
+  items         jsonb,                    -- purchase line items
   source        text default 'admin'      -- admin | worker_request
 );
 create index if not exists project_exp_pid on project_expenditure(project_id);
+alter table project_expenditure add column if not exists items jsonb;
 
 create table if not exists project_payments (
   id           text primary key,

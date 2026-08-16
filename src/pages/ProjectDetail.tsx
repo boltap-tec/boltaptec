@@ -2,13 +2,14 @@ import React, { useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Wallet, Receipt, TrendingUp, TrendingDown, HardHat, Plus, Trash2,
-  Banknote, Pencil, Briefcase, HandCoins,
+  Banknote, Pencil, Briefcase, HandCoins, ShoppingCart,
 } from 'lucide-react';
 import { useData } from '../store/useData';
 import { Card, Modal, Field, Badge, EmptyState, StatCard, Avatar } from '../components/ui';
 import { inr, fmtDate, today } from '../lib/format';
 import { projectFinance, labourFromAttendance, LABOUR_CATEGORY_ID } from '../lib/projects';
 import { confirmAction, confirmProtected } from '../lib/guard';
+import { PurchaseModal } from '../components/PurchaseModal';
 import type { ProjectStatus } from '../types';
 
 const statusTone = (s: ProjectStatus) => (s === 'Completed' ? 'green' : s === 'Cancelled' ? 'red' : 'brand');
@@ -25,6 +26,7 @@ export const ProjectDetail: React.FC = () => {
   const project = projects.find((p) => p.project_id === projectId);
   const [payOpen, setPayOpen] = useState(false);
   const [expOpen, setExpOpen] = useState(false);
+  const [purchaseOpen, setPurchaseOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
 
   const [pay, setPay] = useState({ amount: '', method: 'UPI' as 'UPI' | 'Cash' | 'Bank', date: today(), remark: '' });
@@ -124,6 +126,7 @@ export const ProjectDetail: React.FC = () => {
       <div className="grid grid-cols-2 gap-2">
         <button onClick={() => setPayOpen(true)} className="btn-success"><Banknote size={16} /> Record Payment</button>
         <button onClick={() => setExpOpen(true)} className="btn-primary"><Plus size={16} /> Add Expenditure</button>
+        <button onClick={() => setPurchaseOpen(true)} className="btn-ghost col-span-2"><ShoppingCart size={16} /> Add Purchase (bill / paste table)</button>
       </div>
 
       {/* Labour expenditure — from attendance allocated to this project */}
@@ -169,7 +172,10 @@ export const ProjectDetail: React.FC = () => {
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-semibold text-slate-700">{e.category_name}{e.description ? ` · ${e.description}` : ''}</div>
-                  <div className="text-xs text-slate-400">{fmtDate(e.date)}{e.source === 'worker_request' ? ' · worker request' : ''}{e.remark ? ` · ${e.remark}` : ''}</div>
+                  <div className="text-xs text-slate-400">
+                    {fmtDate(e.date)}{e.source === 'worker_request' ? ' · worker request' : ''}{e.remark ? ` · ${e.remark}` : ''}
+                    {e.items && e.items.length > 0 && ` · ${e.items.length} items`}{e.images && e.images.length > 0 ? ' · 🧾 bill' : ''}
+                  </div>
                 </div>
                 <span className="text-sm font-bold text-slate-700">{inr(e.amount)}</span>
                 <button onClick={() => { if (confirmAction('Delete this expenditure?')) deleteExpenditure(e.id); }} className="p-1.5 rounded-lg text-rose-300 hover:bg-rose-50 opacity-0 group-hover:opacity-100"><Trash2 size={14} /></button>
@@ -248,6 +254,9 @@ export const ProjectDetail: React.FC = () => {
           </div>
         </div>
       </Modal>
+
+      {/* Purchase (standard table + paste mapping) */}
+      <PurchaseModal open={purchaseOpen} project={project} onClose={() => setPurchaseOpen(false)} />
 
       {/* Edit project */}
       <EditProject open={editOpen} onClose={() => setEditOpen(false)} />

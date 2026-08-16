@@ -160,6 +160,13 @@ export interface ExpenditureCategory {
   visible: boolean;            // shown in the manual expenditure picker (Labour is hidden/auto)
 }
 
+export interface PurchaseItem {
+  description: string;
+  qty: number;
+  rate: number;
+  amount: number;
+}
+
 export interface ProjectExpenditure {
   id: string;
   project_id: string;
@@ -171,6 +178,7 @@ export interface ProjectExpenditure {
   amount: number;
   remark?: string | null;
   images?: string[] | null;    // bill photos
+  items?: PurchaseItem[] | null;  // line items for a purchase (from paste/mapping or manual)
   source?: 'admin' | 'worker_request';
 }
 
