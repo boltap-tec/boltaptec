@@ -3,7 +3,7 @@ import { Plus, Clock, Trash2, Calendar, Users, Search, CheckCircle2, Zap, Pencil
 import { useData } from '../store/useData';
 import { Card, Avatar, Modal, Field, EmptyState, Badge } from '../components/ui';
 import { inr, today, fmtDate, nowClock24, to12h, to24h } from '../lib/format';
-import { hoursBetween, computeAttendanceSalary, STANDARD_HOURS } from '../lib/calc';
+import { hoursBetween, computeAttendanceSalary, STANDARD_HOURS, hourlyRate } from '../lib/calc';
 import { hasCoords, mapsLink, fmtCoords } from '../lib/geo';
 import type { Attendance as AttRow } from '../types';
 
@@ -24,9 +24,11 @@ const LocPin: React.FC<{ label: string; lat?: number | null; lng?: number | null
 interface MarkedSummary { name: string; hours: number; ot: number; salary: number; shifts: number; }
 
 export const Attendance: React.FC = () => {
-  const { employees, attendance, addAttendance, updateAttendance, deleteAttendance, postAttendance, rejectAttendance, settings } = useData();
+  const { employees, attendance, addAttendance, updateAttendance, deleteAttendance, postAttendance, rejectAttendance, projects, settings } = useData();
   const [view, setView] = useState<'ledger' | 'approval'>('ledger');
   const [apprTab, setApprTab] = useState<'pending' | 'approved' | 'rejected'>('pending');
+  const activeProjects = projects.filter((p) => p.status === 'Running');
+  const planProject = settings.today_plan_date === today() ? settings.today_project_id : null;
 
   // Land on the Approval queue when workers have punches waiting (so self-punches
   // are never missed on the default Ledger view). Runs once on open.
@@ -40,6 +42,7 @@ export const Attendance: React.FC = () => {
   const [timeIn, setTimeIn] = useState('09:30');   // 24h for <input type="time">
   const [timeOut, setTimeOut] = useState('18:30');
   const [lunch, setLunch] = useState(settings.lunch_hours ?? 1);
+  const [markProject, setMarkProject] = useState('');   // project for this batch's labour expenditure
   const [filterDate, setFilterDate] = useState('');
   const [q, setQ] = useState('');
   const [summary, setSummary] = useState<MarkedSummary[] | null>(null);
@@ -48,13 +51,26 @@ export const Attendance: React.FC = () => {
   const [eIn, setEIn] = useState('');
   const [eOut, setEOut] = useState('');
   const [eLunch, setELunch] = useState(0);
+  const [eAllocs, setEAllocs] = useState<{ project_id: string; hours: number }[]>([]);
 
   const openEdit = (a: AttRow) => {
     setEditRow(a); setEDate(a.date); setEIn(to24h(a.time_in)); setEOut(to24h(a.time_out)); setELunch(a.lunch_hours ?? 0);
+    const existing = (a.project_allocations || []).map((x) => ({ project_id: x.project_id, hours: x.hours }));
+    setEAllocs(existing.length ? existing : (planProject ? [{ project_id: planProject, hours: a.total_hours || 0 }] : []));
   };
   const saveEdit = () => {
     if (!editRow) return;
-    updateAttendance(editRow.id, { date: eDate, time_in: to12h(eIn), time_out: eOut ? to12h(eOut) : editRow.time_out || '', lunch_hours: Number(eLunch) || 0 });
+    const allocs = eAllocs
+      .filter((x) => x.project_id && x.hours > 0)
+      .slice(0, 2)
+      .map((x) => {
+        const p = projects.find((pp) => pp.project_id === x.project_id)!;
+        return { project_id: p.project_id, project_name: p.name, hours: x.hours, amount: Math.round(x.hours * hourlyRate(editRow.daily_wage)) };
+      });
+    updateAttendance(editRow.id, {
+      date: eDate, time_in: to12h(eIn), time_out: eOut ? to12h(eOut) : editRow.time_out || '',
+      lunch_hours: Number(eLunch) || 0, project_allocations: allocs.length ? allocs : null,
+    });
     setEditRow(null);
   };
   const eGross = eIn && eOut ? hoursBetween(eIn, eOut) : 0;
@@ -107,14 +123,18 @@ export const Attendance: React.FC = () => {
     const tOut = to12h(timeOut);
     const refNames = ids.join(' , ');
     const result: MarkedSummary[] = [];
+    const proj = markProject ? projects.find((p) => p.project_id === markProject) : null;
     ids.forEach((id) => {
       const e = employees.find((x) => x.employee_id === id)!;
       const { salary_amount, extra_time } = computeAttendanceSalary(hours, e.daily_wage);
+      const project_allocations = proj
+        ? [{ project_id: proj.project_id, project_name: proj.name, hours, amount: Math.round(hours * hourlyRate(e.daily_wage)) }]
+        : null;
       addAttendance({
         date, employee_id: id, employee_name: e.name,
         time_in: tIn, time_out: tOut, total_hours: hours,
         salary_amount, daily_wage: e.daily_wage, ref_names: refNames, extra_time,
-        lunch_hours: Number(lunch) || 0,
+        lunch_hours: Number(lunch) || 0, project_allocations,
       });
       const shifts = attendance.filter((a) => a.employee_id === id && a.date === date).length + 1;
       result.push({ name: e.name, hours, ot: extra_time, salary: salary_amount, shifts });
@@ -138,6 +158,9 @@ export const Attendance: React.FC = () => {
             <div className="text-xs text-slate-400">
               {fmtDate(a.date)} · {a.time_in || '—'}{closed ? ` – ${a.time_out} · ${a.total_hours}h` : ' · open, not closed yet'}
             </div>
+            {a.project_allocations && a.project_allocations.length > 0 && (
+              <div className="text-[11px] text-brand-600 font-semibold truncate">🏗 {a.project_allocations.map((x) => `${x.project_name} (${x.hours}h)`).join(' · ')}</div>
+            )}
             {a.status === 'rejected' && a.reject_reason && <div className="text-xs text-rose-500 mt-0.5">Reason: {a.reject_reason}</div>}
           </div>
           {closed && <span className="text-sm font-bold text-slate-700">{inr(a.salary_amount)}</span>}
@@ -173,7 +196,7 @@ export const Attendance: React.FC = () => {
           <h1 className="text-2xl font-extrabold text-slate-800">Attendance</h1>
           <p className="text-slate-400 text-sm">{attendance.length} records · hours auto-calculate salary</p>
         </div>
-        <button onClick={() => { setModal(true); setDate(today()); setIds([]); setLunch(settings.lunch_hours ?? 1); }} className="btn-primary">
+        <button onClick={() => { setModal(true); setDate(today()); setIds([]); setLunch(settings.lunch_hours ?? 1); setMarkProject(planProject || ''); }} className="btn-primary">
           <Plus size={18} /> <span className="hidden sm:inline">Mark</span>
         </button>
       </div>
@@ -252,6 +275,9 @@ export const Attendance: React.FC = () => {
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-semibold text-slate-700">{a.employee_name}</div>
                         <div className="text-xs text-slate-400">{a.time_in} – {a.time_out} · {a.total_hours}h {a.extra_time > 0 && <span className="text-brand-500 font-semibold">+{a.extra_time} OT</span>}</div>
+                        {a.project_allocations && a.project_allocations.length > 0 && (
+                          <div className="text-[11px] text-brand-600 font-semibold truncate">🏗 {a.project_allocations.map((x) => `${x.project_name} (${x.hours}h)`).join(' · ')}</div>
+                        )}
                         {(hasCoords(a.open_lat, a.open_lng) || hasCoords(a.close_lat, a.close_lng)) && (
                           <div className="mt-1 flex flex-wrap gap-1.5">
                             <LocPin label="Open" lat={a.open_lat} lng={a.open_lng} />
@@ -296,6 +322,12 @@ export const Attendance: React.FC = () => {
           </div>
           <Field label="Lunch / Break (hours) — deducted from shift">
             <input type="number" step="0.5" min="0" className="input" value={lunch} onChange={(e) => setLunch(Number(e.target.value))} />
+          </Field>
+          <Field label="Project (labour expenditure)" hint={planProject ? "Defaults to today's work." : 'Optional — links these hours to a project.'}>
+            <select className="input" value={markProject} onChange={(e) => setMarkProject(e.target.value)}>
+              <option value="">No project</option>
+              {activeProjects.map((p) => <option key={p.project_id} value={p.project_id}>{p.name}{p.project_id === planProject ? ' (today)' : ''}</option>)}
+            </select>
           </Field>
           <div className="rounded-xl bg-brand-50 text-brand-700 px-3 py-2 text-sm font-semibold flex items-center justify-between flex-wrap gap-1">
             <span className="flex items-center gap-1.5">
@@ -407,6 +439,33 @@ export const Attendance: React.FC = () => {
           {editRow && eHours > 0 && (
             <div className="text-xs text-slate-400">New salary: {inr(computeAttendanceSalary(eHours, editRow.daily_wage).salary_amount)} (was {inr(editRow.salary_amount)})</div>
           )}
+          {/* Project allocation → labour expenditure (split up to 2 projects) */}
+          <div className="rounded-xl border border-slate-200 p-3 space-y-2">
+            <div className="text-xs font-bold text-slate-500 flex items-center justify-between">
+              <span>Project(s) — labour expenditure</span>
+              {eAllocs.length < 2 && activeProjects.length > 0 && (
+                <button onClick={() => setEAllocs([...eAllocs, { project_id: '', hours: 0 }])} className="text-brand-600 font-semibold">+ Add project</button>
+              )}
+            </div>
+            {eAllocs.length === 0 && <div className="text-xs text-slate-400">No project linked. Add one to record labour cost.</div>}
+            {eAllocs.map((al, i) => (
+              <div key={i} className="flex gap-2 items-center">
+                <select className="input flex-1" value={al.project_id}
+                  onChange={(e) => setEAllocs(eAllocs.map((x, j) => (j === i ? { ...x, project_id: e.target.value } : x)))}>
+                  <option value="">Select project…</option>
+                  {activeProjects.map((p) => <option key={p.project_id} value={p.project_id}>{p.name}{p.project_id === planProject ? ' (today)' : ''}</option>)}
+                </select>
+                <input type="number" step="0.5" min="0" className="input w-24" placeholder="hrs" value={al.hours || ''}
+                  onChange={(e) => setEAllocs(eAllocs.map((x, j) => (j === i ? { ...x, hours: Number(e.target.value) || 0 } : x)))} />
+                <button onClick={() => setEAllocs(eAllocs.filter((_, j) => j !== i))} className="p-1.5 rounded-lg text-rose-300 hover:bg-rose-50"><Trash2 size={14} /></button>
+              </div>
+            ))}
+            {eAllocs.length > 0 && (
+              <div className="text-[11px] text-slate-400">
+                Allocated {eAllocs.reduce((s, x) => s + (x.hours || 0), 0)}h of {eHours}h paid.
+              </div>
+            )}
+          </div>
           <div className="flex gap-2 pt-1">
             <button onClick={() => { if (editRow && confirm('Delete this record?')) { deleteAttendance(editRow.id); setEditRow(null); } }} className="btn-danger px-3"><Trash2 size={16} /></button>
             <button onClick={() => setEditRow(null)} className="btn-ghost flex-1">Cancel</button>

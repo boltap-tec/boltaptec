@@ -51,7 +51,7 @@ interface DataState {
 
   // attendance
   addAttendance: (a: Omit<Attendance, 'id'>) => void;
-  updateAttendance: (id: string, patch: { date?: string; time_in?: string; time_out?: string; lunch_hours?: number }) => void;
+  updateAttendance: (id: string, patch: { date?: string; time_in?: string; time_out?: string; lunch_hours?: number; project_allocations?: import('../types').ProjectAllocation[] | null }) => void;
   deleteAttendance: (id: string) => void;
   markIn: (employeeId: string, loc?: { lat: number; lng: number } | null) => { ok: boolean; msg: string };
   markOut: (employeeId: string, loc?: { lat: number; lng: number } | null) => { ok: boolean; msg: string };
@@ -283,7 +283,8 @@ export const useData = create<DataState>()(
             const gross = time_in && time_out ? hoursBetween(time_in, time_out) : a.total_hours + (a.lunch_hours || 0);
             const net = Math.max(0, gross - lunch);
             const { salary_amount, extra_time } = computeAttendanceSalary(net, a.daily_wage);
-            return { ...a, date: patch.date ?? a.date, time_in, time_out, total_hours: net, salary_amount, extra_time, lunch_hours: lunch };
+            const project_allocations = patch.project_allocations !== undefined ? patch.project_allocations : a.project_allocations;
+            return { ...a, date: patch.date ?? a.date, time_in, time_out, total_hours: net, salary_amount, extra_time, lunch_hours: lunch, project_allocations };
           }),
         }),
 
