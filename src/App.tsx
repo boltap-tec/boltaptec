@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { Zap } from 'lucide-react';
 import { useAuth } from './store/useAuth';
+import { usePrefs } from './store/usePrefs';
+import { tick } from './lib/alarm';
 import { initCloud, cloudEnabled } from './lib/cloud';
 import { Layout } from './components/Layout';
 import { Login } from './pages/Login';
@@ -36,6 +38,17 @@ export default function App() {
     let alive = true;
     initCloud().finally(() => { if (alive) setReady(true); });
     return () => { alive = false; };
+  }, []);
+
+  // Play a tap sound on menu/button clicks when the user has sounds on.
+  useEffect(() => {
+    const onClick = (e: MouseEvent) => {
+      if (!usePrefs.getState().sound) return;
+      const el = (e.target as HTMLElement | null)?.closest('button, a, [role="button"], select, input[type="checkbox"]');
+      if (el) tick();
+    };
+    document.addEventListener('click', onClick, true);
+    return () => document.removeEventListener('click', onClick, true);
   }, []);
 
   if (!ready) {

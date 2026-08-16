@@ -14,10 +14,12 @@ import { getDeviceId, shortDeviceId } from '../lib/device';
 import { compressImage } from '../lib/image';
 import { sharePayslip } from '../lib/payslip';
 import { getLocation } from '../lib/geo';
+import { useT } from '../lib/i18n';
 
 export const EmployeeHome: React.FC = () => {
   const { session } = useAuth();
   const navigate = useNavigate();
+  const t = useT();
   const { employees, ledger, attendance, requests, createRequest, markIn, markOut, updateEmployee, settings } = useData();
   const emp = employees.find((e) => e.employee_id === session?.employee_id);
 
@@ -105,7 +107,7 @@ export const EmployeeHome: React.FC = () => {
           <input type="file" accept="image/*" capture="user" className="hidden" onChange={(e) => onPhoto(e.target.files?.[0] || null)} />
         </label>
         <div>
-          <div className="text-slate-400 text-sm">{new Date().getHours() < 12 ? 'Good morning' : new Date().getHours() < 17 ? 'Good afternoon' : 'Good evening'},</div>
+          <div className="text-slate-400 text-sm">{new Date().getHours() < 12 ? t('home.goodMorning') : new Date().getHours() < 17 ? t('home.goodAfternoon') : t('home.goodEvening')},</div>
           <div className="text-xl font-extrabold text-slate-800">{emp.name} 👋</div>
         </div>
       </div>
@@ -116,16 +118,16 @@ export const EmployeeHome: React.FC = () => {
       <Card className={`p-4 ${openRow ? 'border-l-4 border-l-emerald-500' : ''}`}>
         <div className="flex items-center justify-between">
           <div>
-            <div className="font-bold text-slate-800 flex items-center gap-2"><Clock size={17} className="text-brand-500" /> Today's Attendance</div>
+            <div className="font-bold text-slate-800 flex items-center gap-2"><Clock size={17} className="text-brand-500" /> {t('home.todayAttendance')}</div>
             <div className="text-sm text-slate-500 mt-0.5">
-              {openRow ? <>Opened at <b className="text-emerald-600">{openRow.time_in}</b> — working now</>
-                : doneToday.length ? <>Done for now · {doneHours}h logged today</>
-                : 'Attendance not opened yet'}
+              {openRow ? <>Opened at <b className="text-emerald-600">{openRow.time_in}</b> — {t('home.workingNow')}</>
+                : doneToday.length ? <>{t('home.doneForNow')} · {doneHours}h</>
+                : t('home.notOpened')}
             </div>
           </div>
           {openRow
-            ? <button onClick={doOut} disabled={locating} className="btn-danger"><LogOut size={18} /> {locating ? 'Locating…' : 'Close Attendance'}</button>
-            : <button onClick={doIn} disabled={!deviceOk || locating} className="btn-success"><LogIn size={18} /> {locating ? 'Locating…' : 'Open Attendance'}</button>}
+            ? <button onClick={doOut} disabled={locating} className="btn-danger"><LogOut size={18} /> {locating ? t('home.locating') : t('home.close')}</button>
+            : <button onClick={doIn} disabled={!deviceOk || locating} className="btn-success"><LogIn size={18} /> {locating ? t('home.locating') : t('home.open')}</button>}
         </div>
         <div className="mt-3 pt-3 border-t border-slate-100 flex items-center gap-2 text-xs">
           <Fingerprint size={14} className={deviceOk ? 'text-emerald-500' : 'text-rose-500'} />

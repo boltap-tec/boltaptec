@@ -9,7 +9,50 @@ import { useData } from '../store/useData';
 import { cloudEnabled, pullAll } from '../lib/cloud';
 import { beep } from '../lib/alarm';
 import { today } from '../lib/format';
+import { usePrefs } from '../store/usePrefs';
+import { useT, LANGUAGES } from '../lib/i18n';
 import { Avatar } from './ui';
+import { Languages, Volume2, VolumeX } from 'lucide-react';
+
+// Per-user Preferences: language + sounds. Saved on this device only.
+const PreferencesControl: React.FC = () => {
+  const [open, setOpen] = React.useState(false);
+  const { lang, sound, setLang, setSound } = usePrefs();
+  const t = useT();
+  return (
+    <div className="relative">
+      <button onClick={() => setOpen((o) => !o)} className="p-2 rounded-lg text-slate-500 hover:bg-slate-100" title={t('pref.title')}>
+        <Languages size={18} />
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 mt-1 w-60 bg-white rounded-xl shadow-lg border border-slate-100 z-50 overflow-hidden">
+            <div className="px-3 py-2 text-xs font-bold text-slate-400 border-b border-slate-50">{t('pref.title')}</div>
+            <div className="p-3 space-y-3">
+              <div>
+                <div className="text-xs font-semibold text-slate-500 mb-1.5">{t('pref.language')}</div>
+                <div className="grid grid-cols-2 gap-2">
+                  {LANGUAGES.map((l) => (
+                    <button key={l.code} onClick={() => setLang(l.code)}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-semibold ${lang === l.code ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600'}`}>{l.label}</button>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs font-semibold text-slate-500 mb-1.5">{t('pref.sound')} <span className="text-slate-400 font-normal">· {t('pref.soundHint')}</span></div>
+                <button onClick={() => setSound(!sound)}
+                  className={`w-full flex items-center justify-center gap-2 px-3 py-1.5 rounded-lg text-sm font-semibold ${sound ? 'bg-emerald-500 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                  {sound ? <Volume2 size={16} /> : <VolumeX size={16} />} {sound ? t('pref.on') : t('pref.off')}
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
 
 // "Today's Work" — admin picks the active project for the day; it becomes the
 // default project for attendance and worker expense requests.
@@ -105,27 +148,28 @@ const NotificationBell: React.FC<{ attn: number; adv: number; exp: number }> = (
 };
 
 const adminNav = [
-  { to: '/', label: 'Dashboard', icon: LayoutDashboard },
-  { to: '/employees', label: 'Employees', icon: Users },
-  { to: '/attendance', label: 'Attendance', icon: CalendarClock },
-  { to: '/projects', label: 'Projects', icon: Briefcase },
-  { to: '/project-expense', label: 'Project Expense', icon: Receipt },
-  { to: '/salary', label: 'Salary', icon: Wallet },
-  { to: '/advances', label: 'Advances', icon: HandCoins },
-  { to: '/ledger', label: 'Ledger', icon: BookOpen },
-  { to: '/settings', label: 'Settings', icon: SettingsIcon },
+  { to: '/', label: 'nav.dashboard', icon: LayoutDashboard },
+  { to: '/employees', label: 'nav.employees', icon: Users },
+  { to: '/attendance', label: 'nav.attendance', icon: CalendarClock },
+  { to: '/projects', label: 'nav.projects', icon: Briefcase },
+  { to: '/project-expense', label: 'nav.projectExpense', icon: Receipt },
+  { to: '/salary', label: 'nav.salary', icon: Wallet },
+  { to: '/advances', label: 'nav.advances', icon: HandCoins },
+  { to: '/ledger', label: 'nav.ledger', icon: BookOpen },
+  { to: '/settings', label: 'nav.settings', icon: SettingsIcon },
 ];
 
 const workerNav = [
-  { to: '/me', label: 'My Money', icon: Home },
-  { to: '/project-expense', label: 'Project Expense', icon: Receipt },
-  { to: '/advances', label: 'Advances', icon: HandCoins },
-  { to: '/my-history', label: 'History', icon: History },
+  { to: '/me', label: 'nav.myMoney', icon: Home },
+  { to: '/project-expense', label: 'nav.projectExpense', icon: Receipt },
+  { to: '/advances', label: 'nav.advances', icon: HandCoins },
+  { to: '/my-history', label: 'nav.history', icon: History },
 ];
 
 export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { session, logout } = useAuth();
   const navigate = useNavigate();
+  const t = useT();
   const pendingReqs = useData((s) => s.requests.filter((r) => r.status === 'Pending').length);
   const pendingAtt = useData((s) => s.attendance.filter((a) => a.status === 'pending').length);
   const pendingExp = useData((s) => s.expenditureRequests.filter((r) => r.status === 'Pending').length);
@@ -136,7 +180,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   const prevAlerts = React.useRef(0);
   const inited = React.useRef(false);
   React.useEffect(() => {
-    if (isAdmin && inited.current && totalAlerts > prevAlerts.current) beep();
+    if (isAdmin && inited.current && totalAlerts > prevAlerts.current && usePrefs.getState().sound) beep();
     inited.current = true;
     prevAlerts.current = totalAlerts;
   }, [totalAlerts, isAdmin]);
@@ -175,6 +219,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
             <div className="text-[10px] text-slate-400 font-medium">Workforce Manager</div>
           </div>
           <div className="ml-auto flex items-center gap-0.5">
+            <PreferencesControl />
             {isAdmin && <NotificationBell attn={pendingAtt} adv={pendingReqs} exp={pendingExp} />}
             <button onClick={refresh} disabled={refreshing} title="Refresh data"
               className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-50">
@@ -195,7 +240,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                   isActive ? 'bg-brand-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'
                 }`}>
               <n.icon size={19} />
-              <span>{n.label}</span>
+              <span>{t(n.label)}</span>
               {isAdmin && n.to === '/advances' && pendingReqs > 0 && (
                 <span className="ml-auto bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
                   {pendingReqs}
@@ -230,6 +275,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
           </div>
           <div className="flex items-center gap-1">
             {isAdmin && <TodayPlan />}
+            <PreferencesControl />
             <button onClick={refresh} disabled={refreshing} className="p-2 text-slate-500 disabled:opacity-50" title="Refresh data">
               <RefreshCw size={18} className={refreshing ? 'animate-spin' : ''} />
             </button>
@@ -255,7 +301,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
                   isActive ? 'text-brand-600' : 'text-slate-400'
                 }`}>
               <n.icon size={21} />
-              <span>{n.label}</span>
+              <span>{t(n.label)}</span>
               {isAdmin && n.to === '/advances' && pendingReqs > 0 && (
                 <span className="absolute top-1 right-1/4 h-3.5 w-3.5 bg-rose-500 text-white text-[8px] font-bold grid place-items-center rounded-full">
                   {pendingReqs}

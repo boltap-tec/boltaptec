@@ -25,3 +25,23 @@ export function beep(times = 2): void {
     if (navigator.vibrate) navigator.vibrate([120, 60, 120]);
   } catch { /* ignore — audio not available */ }
 }
+
+// Short, quiet UI tap sound for menu/button clicks.
+export function tick(): void {
+  try {
+    const AC = (window as any).AudioContext || (window as any).webkitAudioContext;
+    if (!AC) return;
+    const ac: AudioContext = ctx || (ctx = new AC());
+    const t = ac.currentTime;
+    const osc = ac.createOscillator();
+    const gain = ac.createGain();
+    osc.type = 'triangle';
+    osc.frequency.value = 620;
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(0.09, t + 0.005);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.06);
+    osc.connect(gain).connect(ac.destination);
+    osc.start(t);
+    osc.stop(t + 0.07);
+  } catch { /* ignore */ }
+}
