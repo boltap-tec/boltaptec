@@ -153,7 +153,7 @@ export const EmployeeHome: React.FC = () => {
           <div className="h-10 w-10 rounded-xl bg-brand-600 text-white grid place-items-center"><HandCoins size={20} /></div>
           <div className="font-bold text-slate-800 text-sm">Advance Request</div>
         </button>
-        <button onClick={() => navigate('/project-expense')} className="card p-4 flex flex-col items-center gap-1.5 text-center hover:shadow-soft transition">
+        <button onClick={() => navigate('/project-expense?request=1')} className="card p-4 flex flex-col items-center gap-1.5 text-center hover:shadow-soft transition">
           <div className="h-10 w-10 rounded-xl bg-emerald-600 text-white grid place-items-center"><Receipt size={20} /></div>
           <div className="font-bold text-slate-800 text-sm">Expense Request</div>
         </button>

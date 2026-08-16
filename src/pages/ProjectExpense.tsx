@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Receipt, Send, Clock, CheckCircle2, XCircle, Check, X, Pencil, Banknote, Smartphone, HandCoins,
 } from 'lucide-react';
@@ -41,6 +42,16 @@ export const ProjectExpense: React.FC = () => {
   const decided = visible.filter((r) => r.status !== 'Pending');
 
   const openReq = () => { setF({ ...blank }); setReqOpen(true); };
+
+  // Open the request modal directly when arrived via the dashboard quick action.
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    if (searchParams.get('request') === '1') {
+      openReq();
+      setSearchParams({}, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const submit = () => {
     const amt = Number(f.amount);
