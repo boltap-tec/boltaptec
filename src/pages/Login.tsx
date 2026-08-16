@@ -5,6 +5,7 @@ import { useAuth } from '../store/useAuth';
 import { useData } from '../store/useData';
 import { cloudState } from '../lib/cloud';
 import { biometricUnlock, biometricSupported } from '../lib/biometric';
+import { getDeviceId } from '../lib/device';
 
 const Keypad: React.FC<{ onKey: (k: string) => void; onBack: () => void }> = ({ onKey, onBack }) => (
   <div className="grid grid-cols-3 gap-2.5 mt-4">
@@ -36,7 +37,23 @@ export const Login: React.FC = () => {
   const { loginAdmin, loginEmployee } = useAuth();
   const employees = useData((s) => s.employees);
   const settings = useData((s) => s.settings);
+  const updateEmployee = useData((s) => s.updateEmployee);
   const navigate = useNavigate();
+
+  // Worker login is bound to the first device used. Later logins from a different
+  // phone are blocked until the admin resets the device on the worker's profile.
+  const loginWorker = (w: NonNullable<ReturnType<typeof matchPhone>>): boolean => {
+    const dev = getDeviceId();
+    if (w.device_id && w.device_id !== dev) {
+      setError('This account is registered on another phone. Ask your admin to reset it.');
+      setPin('');
+      return false;
+    }
+    if (!w.device_id) updateEmployee(w.employee_id, { device_id: dev });
+    loginEmployee(w.employee_id, w.name);
+    navigate('/me');
+    return true;
+  };
 
   const [mode, setMode] = useState<'choose' | 'admin' | 'worker'>('choose');
   const [step, setStep] = useState<'phone' | 'pin'>('phone');
@@ -87,7 +104,7 @@ export const Login: React.FC = () => {
       const ok = await biometricUnlock(uid, label);
       if (!ok) { setError('Fingerprint not recognised — use your PIN.'); return; }
       if (mode === 'admin') { loginAdmin('Admin'); navigate('/'); }
-      else if (worker) { loginEmployee(worker.employee_id, worker.name); navigate('/me'); }
+      else if (worker) { loginWorker(worker); }
     } catch (e: any) { setError(e?.message || 'Fingerprint unavailable — use your PIN.'); }
   };
 
@@ -117,7 +134,7 @@ export const Login: React.FC = () => {
       return;
     }
     if (worker && value === (worker.pin || '')) {
-      loginEmployee(worker.employee_id, worker.name); navigate('/me');
+      loginWorker(worker);
     } else { setError('Wrong PIN'); setPin(''); }
   };
 

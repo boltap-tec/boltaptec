@@ -5,7 +5,7 @@ import {
   Banknote, Pencil, Briefcase, HandCoins,
 } from 'lucide-react';
 import { useData } from '../store/useData';
-import { Card, Modal, Field, Badge, EmptyState, StatCard } from '../components/ui';
+import { Card, Modal, Field, Badge, EmptyState, StatCard, Avatar } from '../components/ui';
 import { inr, fmtDate, today } from '../lib/format';
 import { projectFinance, labourFromAttendance, LABOUR_CATEGORY_ID } from '../lib/projects';
 import { confirmAction, confirmProtected } from '../lib/guard';
@@ -45,6 +45,15 @@ export const ProjectDetail: React.FC = () => {
     [projectPayments, projectId],
   );
   const labourFromAtt = useMemo(() => labourFromAttendance(attendance, projectId), [attendance, projectId]);
+  // Per-shift labour entries for this project (from attendance allocations).
+  const labourRows = useMemo(
+    () => attendance
+      .filter((a) => a.status !== 'rejected' && (a.project_allocations || []).some((x) => x.project_id === projectId))
+      .flatMap((a) => (a.project_allocations || []).filter((x) => x.project_id === projectId)
+        .map((x) => ({ id: a.id, date: a.date, name: a.employee_name, hours: x.hours, amount: x.amount })))
+      .sort((a, b) => (a.date < b.date ? 1 : -1)),
+    [attendance, projectId],
+  );
 
   if (!project || !fin) return (
     <div className="space-y-4">
@@ -117,13 +126,30 @@ export const ProjectDetail: React.FC = () => {
         <button onClick={() => setExpOpen(true)} className="btn-primary"><Plus size={16} /> Add Expenditure</button>
       </div>
 
-      {/* Labour summary */}
-      <Card className="p-4">
-        <h3 className="font-bold text-slate-800 flex items-center gap-2 mb-1"><HardHat size={17} className="text-amber-500" /> Labour Expenditure</h3>
-        <div className="text-sm text-slate-500">
-          {inr(fin.labour)} total{labourFromAtt > 0 ? ` · ${inr(labourFromAtt)} from approved attendance` : ''}.
-          Attendance approved against this project flows in automatically.
+      {/* Labour expenditure — from attendance allocated to this project */}
+      <Card className="overflow-hidden">
+        <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-100 font-bold text-slate-700 text-sm flex items-center justify-between">
+          <span className="flex items-center gap-2"><HardHat size={16} className="text-amber-500" /> Labour Expenditure</span>
+          <span className="text-slate-500">{inr(fin.labour)}</span>
         </div>
+        {labourRows.length === 0 ? (
+          <div className="p-4 text-sm text-slate-500">
+            {labourFromAtt > 0 ? `${inr(labourFromAtt)} from attendance.` : 'No attendance linked yet.'} Mark attendance with this project (or set it as Today’s Work) and it flows in here.
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-50">
+            {labourRows.slice(0, 100).map((r, i) => (
+              <div key={r.id + i} className="flex items-center gap-3 px-4 py-2.5">
+                <Avatar name={r.name} size={30} />
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold text-slate-700">{r.name}</div>
+                  <div className="text-xs text-slate-400">{fmtDate(r.date)} · {r.hours}h</div>
+                </div>
+                <span className="text-sm font-bold text-slate-700">{inr(r.amount)}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </Card>
 
       {/* Expenditure list */}

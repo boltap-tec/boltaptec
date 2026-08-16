@@ -2,7 +2,7 @@ import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Users, CalendarClock, Wallet, HandCoins,
-  BookOpen, Settings as SettingsIcon, LogOut, Bell, Zap, Home, History, RefreshCw, Briefcase, Receipt, ClipboardList,
+  BookOpen, Settings as SettingsIcon, LogOut, Bell, Zap, Home, History, RefreshCw, Briefcase, Receipt, ClipboardList, Menu, X,
 } from 'lucide-react';
 import { useAuth } from '../store/useAuth';
 import { useData } from '../store/useData';
@@ -191,6 +191,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   const mobileItems = isAdmin ? items.slice(0, 5) : items;
 
   const [refreshing, setRefreshing] = React.useState(false);
+  const [menuOpen, setMenuOpen] = React.useState(false);
   const [toast, setToast] = React.useState('');
   const flash = (m: string) => { setToast(m); setTimeout(() => setToast(''), 2500); };
 
@@ -234,6 +235,38 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
             <TodayPlan />
           </div>
         )}
+
+        {/* Mobile full-menu drawer (opened from the logo) */}
+        {menuOpen && (
+          <div className="md:hidden fixed inset-0 z-[60]">
+            <div className="absolute inset-0 bg-black/40" onClick={() => setMenuOpen(false)} />
+            <div className="absolute left-0 top-0 bottom-0 w-72 max-w-[85%] bg-white shadow-xl flex flex-col">
+              <div className="h-14 flex items-center gap-2 px-4 border-b border-slate-100">
+                <div className="h-8 w-8 rounded-lg bg-brand-600 grid place-items-center text-white overflow-hidden shrink-0">
+                  {logo ? <img src={logo} alt="" className="h-full w-full object-cover" /> : <Zap size={17} fill="white" />}
+                </div>
+                <span className="font-extrabold text-slate-800 truncate flex-1">{brandName}</span>
+                <button onClick={() => setMenuOpen(false)} className="p-1.5 text-slate-400"><X size={20} /></button>
+              </div>
+              <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
+                {items.map((n) => (
+                  <NavLink key={n.to} to={n.to} end={n.to === '/'} onClick={() => setMenuOpen(false)}
+                    className={({ isActive }) =>
+                      `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition ${isActive ? 'bg-brand-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}>
+                    <n.icon size={19} />
+                    <span>{t(n.label)}</span>
+                    {isAdmin && n.to === '/advances' && pendingReqs > 0 && (
+                      <span className="ml-auto bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{pendingReqs}</span>
+                    )}
+                  </NavLink>
+                ))}
+              </nav>
+              <div className="p-3 border-t border-slate-100">
+                <button onClick={() => { setMenuOpen(false); doLogout(); }} className="btn-ghost w-full text-slate-600"><LogOut size={17} /> Logout</button>
+              </div>
+            </div>
+          </div>
+        )}
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
           {items.map((n) => (
             <NavLink key={n.to} to={n.to} end={n.to === '/'}
@@ -269,12 +302,13 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
       <div className="flex-1 md:ml-64 flex flex-col min-w-0">
         {/* Mobile top bar */}
         <header className="md:hidden h-14 flex items-center justify-between px-4 bg-white border-b border-slate-100 sticky top-0 z-30">
-          <div className="flex items-center gap-2 min-w-0">
+          <button onClick={() => setMenuOpen(true)} className="flex items-center gap-2 min-w-0" title="Menu">
             <div className="h-8 w-8 rounded-lg bg-brand-600 grid place-items-center text-white overflow-hidden shrink-0">
               {logo ? <img src={logo} alt="" className="h-full w-full object-cover" /> : <Zap size={17} fill="white" />}
             </div>
             <span className="font-extrabold text-slate-800 truncate">{brandName}</span>
-          </div>
+            <Menu size={16} className="text-slate-400 shrink-0" />
+          </button>
           <div className="flex items-center gap-1">
             {isAdmin && <TodayPlan />}
             <PreferencesControl />
