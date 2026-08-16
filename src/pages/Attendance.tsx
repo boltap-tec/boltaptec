@@ -1,15 +1,30 @@
 import React, { useState, useMemo } from 'react';
-import { Plus, Clock, Trash2, Calendar, Users, Search, CheckCircle2, Zap, Pencil } from 'lucide-react';
+import { Plus, Clock, Trash2, Calendar, Users, Search, CheckCircle2, Zap, Pencil, MapPin, Send, Hourglass } from 'lucide-react';
 import { useData } from '../store/useData';
 import { Card, Avatar, Modal, Field, EmptyState, Badge } from '../components/ui';
 import { inr, today, fmtDate, nowClock24, to12h, to24h } from '../lib/format';
 import { hoursBetween, computeAttendanceSalary, STANDARD_HOURS } from '../lib/calc';
+import { hasCoords, mapsLink, fmtCoords } from '../lib/geo';
 import type { Attendance as AttRow } from '../types';
+
+// A tappable location pill that opens the punch spot in Google Maps.
+const LocPin: React.FC<{ label: string; lat?: number | null; lng?: number | null }> = ({ label, lat, lng }) =>
+  hasCoords(lat, lng) ? (
+    <a href={mapsLink(lat as number, lng as number)} target="_blank" rel="noopener noreferrer"
+      className="inline-flex items-center gap-1 rounded-lg bg-brand-50 text-brand-700 px-2 py-0.5 text-[11px] font-semibold hover:bg-brand-100"
+      title={fmtCoords(lat as number, lng as number)}>
+      <MapPin size={11} /> {label}
+    </a>
+  ) : (
+    <span className="inline-flex items-center gap-1 rounded-lg bg-slate-100 text-slate-400 px-2 py-0.5 text-[11px] font-semibold" title="No location captured">
+      <MapPin size={11} /> {label}: —
+    </span>
+  );
 
 interface MarkedSummary { name: string; hours: number; ot: number; salary: number; shifts: number; }
 
 export const Attendance: React.FC = () => {
-  const { employees, attendance, addAttendance, updateAttendance, deleteAttendance, settings } = useData();
+  const { employees, attendance, addAttendance, updateAttendance, deleteAttendance, postAttendance, settings } = useData();
   const [modal, setModal] = useState(false);
   const [date, setDate] = useState(today());
   const [ids, setIds] = useState<string[]>([]);
@@ -49,7 +64,16 @@ export const Attendance: React.FC = () => {
   const selectable = active.filter((e) => !markedOnDate.has(e.employee_id));
   const alreadyDone = active.filter((e) => markedOnDate.has(e.employee_id));
 
+  // Worker self-punches awaiting admin review (newest first). Kept out of the
+  // posted list below so a record shows in exactly one place.
+  const pending = useMemo(
+    () => attendance.filter((a) => a.status === 'pending')
+      .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)),
+    [attendance],
+  );
+
   const rows = useMemo(() => attendance.filter((a) =>
+    a.status !== 'pending' &&
     (!filterDate || a.date === filterDate) &&
     (!q || a.employee_name.toLowerCase().includes(q.toLowerCase())),
   ).slice(0, 200), [attendance, filterDate, q]);
@@ -109,6 +133,47 @@ export const Attendance: React.FC = () => {
         {filterDate && <button onClick={() => setFilterDate('')} className="btn-ghost">Clear</button>}
       </div>
 
+      {/* Worker self-punches waiting for the admin to correct & post */}
+      {pending.length > 0 && (
+        <Card className="overflow-hidden border-l-4 border-l-amber-400">
+          <div className="flex items-center gap-2 px-4 py-2.5 bg-amber-50 border-b border-amber-100 font-bold text-amber-700 text-sm">
+            <Hourglass size={16} /> Pending Review · from workers
+            <Badge tone="amber">{pending.length}</Badge>
+          </div>
+          <div className="divide-y divide-slate-50">
+            {pending.map((a) => {
+              const closed = !!a.time_out;
+              return (
+                <div key={a.id} className="px-4 py-3">
+                  <div className="flex items-center gap-3">
+                    <Avatar name={a.employee_name} size={34} />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-semibold text-slate-700">{a.employee_name}</div>
+                      <div className="text-xs text-slate-400">
+                        {fmtDate(a.date)} · {a.time_in || '—'}{closed ? ` – ${a.time_out} · ${a.total_hours}h` : ' · open, not closed yet'}
+                      </div>
+                    </div>
+                    {closed && <span className="text-sm font-bold text-slate-700">{inr(a.salary_amount)}</span>}
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    <LocPin label="Open" lat={a.open_lat} lng={a.open_lng} />
+                    <LocPin label="Close" lat={a.close_lat} lng={a.close_lng} />
+                    <div className="flex-1" />
+                    <button onClick={() => openEdit(a)} className="btn-ghost px-2.5 py-1 text-xs"><Pencil size={13} /> Correct</button>
+                    {closed ? (
+                      <button onClick={() => postAttendance(a.id)} className="btn-success px-2.5 py-1 text-xs"><Send size={13} /> Post</button>
+                    ) : (
+                      <span className="text-[11px] text-slate-400 font-semibold px-1">Waiting for worker to close</span>
+                    )}
+                    <button onClick={() => deleteAttendance(a.id)} className="p-1.5 rounded-lg text-rose-300 hover:bg-rose-50"><Trash2 size={14} /></button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
+
       {grouped.length === 0 ? (
         <Card className="p-6"><EmptyState icon={<Clock size={40} />} title="No attendance records" hint="Mark attendance to auto-calculate daily salary." /></Card>
       ) : (
@@ -131,6 +196,12 @@ export const Attendance: React.FC = () => {
                       <div className="flex-1 min-w-0">
                         <div className="text-sm font-semibold text-slate-700">{a.employee_name}</div>
                         <div className="text-xs text-slate-400">{a.time_in} – {a.time_out} · {a.total_hours}h {a.extra_time > 0 && <span className="text-brand-500 font-semibold">+{a.extra_time} OT</span>}</div>
+                        {(hasCoords(a.open_lat, a.open_lng) || hasCoords(a.close_lat, a.close_lng)) && (
+                          <div className="mt-1 flex flex-wrap gap-1.5">
+                            <LocPin label="Open" lat={a.open_lat} lng={a.open_lng} />
+                            <LocPin label="Close" lat={a.close_lat} lng={a.close_lng} />
+                          </div>
+                        )}
                       </div>
                       <span className="text-sm font-bold text-slate-700">{inr(a.salary_amount)}</span>
                       <button onClick={() => openEdit(a)} className="p-1.5 rounded-lg text-slate-300 hover:bg-slate-100 hover:text-brand-500 opacity-0 group-hover:opacity-100">
@@ -281,7 +352,9 @@ export const Attendance: React.FC = () => {
           <div className="flex gap-2 pt-1">
             <button onClick={() => { if (editRow && confirm('Delete this record?')) { deleteAttendance(editRow.id); setEditRow(null); } }} className="btn-danger px-3"><Trash2 size={16} /></button>
             <button onClick={() => setEditRow(null)} className="btn-ghost flex-1">Cancel</button>
-            <button onClick={saveEdit} className="btn-primary flex-1">Save</button>
+            {editRow?.status === 'pending'
+              ? <button onClick={() => { const id = editRow.id; saveEdit(); postAttendance(id); }} disabled={!eOut} className="btn-success flex-1"><Send size={15} /> Save & Post</button>
+              : <button onClick={saveEdit} className="btn-primary flex-1">Save</button>}
           </div>
         </div>
       </Modal>

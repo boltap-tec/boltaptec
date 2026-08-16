@@ -29,8 +29,10 @@ interface DataState {
   addAttendance: (a: Omit<Attendance, 'id'>) => void;
   updateAttendance: (id: string, patch: { date?: string; time_in?: string; time_out?: string; lunch_hours?: number }) => void;
   deleteAttendance: (id: string) => void;
-  markIn: (employeeId: string) => { ok: boolean; msg: string };
-  markOut: (employeeId: string) => { ok: boolean; msg: string };
+  markIn: (employeeId: string, loc?: { lat: number; lng: number } | null) => { ok: boolean; msg: string };
+  markOut: (employeeId: string, loc?: { lat: number; lng: number } | null) => { ok: boolean; msg: string };
+  // Admin confirms an employee self-punch → it becomes a normal posted record.
+  postAttendance: (id: string) => void;
 
   // advances
   giveAdvance: (employeeId: string, amount: number, method: 'Cash' | 'UPI', note?: string, weeklyRecovery?: number, date?: string) => void;
@@ -114,7 +116,8 @@ export const useData = create<DataState>()(
 
       addAttendance: (a) => {
         const { salary_amount, extra_time } = computeAttendanceSalary(a.total_hours, a.daily_wage);
-        const row: Attendance = { ...a, id: uid('att_'), salary_amount, extra_time };
+        // Admin-entered rows are posted immediately; self-punch rows pass source/status in.
+        const row: Attendance = { source: 'admin', status: 'posted', ...a, id: uid('att_'), salary_amount, extra_time };
         set({ attendance: [row, ...get().attendance] });
       },
 
@@ -135,32 +138,35 @@ export const useData = create<DataState>()(
       deleteAttendance: (id) =>
         set({ attendance: get().attendance.filter((a) => a.id !== id) }),
 
-      // Worker self-service punch-in. Creates an open row (no time-out yet).
-      markIn: (employeeId) => {
+      // Worker self-service Open Attendance. Creates an open row (no time-out yet)
+      // in 'pending' state — the admin reviews & posts it later.
+      markIn: (employeeId, loc) => {
         const emp = get().employees.find((e) => e.employee_id === employeeId);
         if (!emp) return { ok: false, msg: 'Employee not found' };
         const day = today();
         const open = get().attendance.find(
           (a) => a.employee_id === employeeId && a.date === day && !a.time_out,
         );
-        if (open) return { ok: false, msg: 'You are already marked in for today.' };
+        if (open) return { ok: false, msg: 'You have already opened attendance for today.' };
         const now = new Date().toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase();
         const row: Attendance = {
           id: uid('att_'), date: day, employee_id: employeeId, employee_name: emp.name,
           time_in: now, time_out: null, total_hours: 0, salary_amount: 0,
           daily_wage: emp.daily_wage, ref_names: emp.employee_id, extra_time: 0,
+          source: 'employee', status: 'pending',
+          open_lat: loc?.lat ?? null, open_lng: loc?.lng ?? null,
         };
         set({ attendance: [row, ...get().attendance] });
-        return { ok: true, msg: `Marked IN at ${now}` };
+        return { ok: true, msg: `Opened attendance at ${now}` };
       },
 
-      // Worker self-service punch-out. Closes the open row and computes pay.
-      markOut: (employeeId) => {
+      // Worker self-service Close Attendance. Closes the open row and computes pay.
+      markOut: (employeeId, loc) => {
         const day = today();
         const open = get().attendance.find(
           (a) => a.employee_id === employeeId && a.date === day && !a.time_out,
         );
-        if (!open) return { ok: false, msg: 'You have not marked in yet today.' };
+        if (!open) return { ok: false, msg: 'You have not opened attendance yet today.' };
         const now = new Date().toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase();
         const gross = hoursBetween(open.time_in || now, now);
         const lunch = get().settings.lunch_hours || 0;
@@ -168,11 +174,24 @@ export const useData = create<DataState>()(
         const { salary_amount, extra_time } = computeAttendanceSalary(hrs, open.daily_wage);
         set({
           attendance: get().attendance.map((a) =>
-            a.id === open.id ? { ...a, time_out: now, total_hours: hrs, salary_amount, extra_time, lunch_hours: lunch } : a,
+            a.id === open.id
+              ? {
+                  ...a, time_out: now, total_hours: hrs, salary_amount, extra_time, lunch_hours: lunch,
+                  close_lat: loc?.lat ?? a.close_lat ?? null, close_lng: loc?.lng ?? a.close_lng ?? null,
+                }
+              : a,
           ),
         });
-        return { ok: true, msg: `Marked OUT at ${now} · ${hrs}h (−${lunch}h lunch)` };
+        return { ok: true, msg: `Closed attendance at ${now} · ${hrs}h (−${lunch}h lunch)` };
       },
+
+      // Admin confirms a worker's self-punch → posted (counts for payroll).
+      postAttendance: (id) =>
+        set({
+          attendance: get().attendance.map((a) =>
+            a.id === id ? { ...a, status: 'posted' } : a,
+          ),
+        }),
 
       giveAdvance: (employeeId, amount, method, note, weeklyRecovery, date) => {
         const emp = get().employees.find((e) => e.employee_id === employeeId);
@@ -288,7 +307,8 @@ export const useData = create<DataState>()(
         const claimed = new Set<string>();
         get().employees.forEach((e) => {
           const rows = attendance.filter(
-            (a) => a.employee_id === e.employee_id && a.date >= from && a.date <= to && !a.paid,
+            (a) => a.employee_id === e.employee_id && a.date >= from && a.date <= to && !a.paid &&
+              a.status !== 'pending', // only admin-posted days are payable
           );
           const gross = rows.reduce((s, a) => s + a.salary_amount, 0);
           if (rows.length === 0 || gross <= 0) return;

@@ -39,7 +39,13 @@ create table if not exists attendance (
   ref_names     text,
   extra_time    numeric default 0,
   paid          boolean default false,   -- true once this day's salary is paid
-  salary_id     text                     -- which posting settled it
+  salary_id     text,                    -- which posting settled it
+  source        text,                    -- 'employee' (self-punch) | 'admin'
+  status        text,                    -- 'pending' (awaiting admin post) | 'posted'
+  open_lat      numeric,                 -- location when the worker opened attendance
+  open_lng      numeric,
+  close_lat     numeric,                 -- location when the worker closed attendance
+  close_lng     numeric
 );
 create index if not exists attendance_emp_date on attendance(employee_id, date);
 
@@ -101,13 +107,25 @@ create table if not exists advance_requests (
 );
 
 create table if not exists settings (
-  id             int primary key default 1,
-  business_name  text,
-  admin_upi_id   text,
-  admin_pin      text,
-  standard_hours numeric default 8,
-  week_start     int default 6
+  id                int primary key default 1,
+  business_name     text,
+  admin_upi_id      text,
+  admin_pin         text,
+  standard_hours    numeric default 8,
+  lunch_hours       numeric default 1,
+  week_start        int default 6,
+  location_required boolean default false
 );
+
+-- Additive migration for databases created before these columns existed.
+alter table attendance add column if not exists source    text;
+alter table attendance add column if not exists status    text;
+alter table attendance add column if not exists open_lat  numeric;
+alter table attendance add column if not exists open_lng  numeric;
+alter table attendance add column if not exists close_lat numeric;
+alter table attendance add column if not exists close_lng numeric;
+alter table settings   add column if not exists lunch_hours       numeric default 1;
+alter table settings   add column if not exists location_required boolean default false;
 
 -- Grant the app's publishable/anon key full access (DEMO — see policies.sql).
 -- ⚠️ tighten with RLS + real auth before production.

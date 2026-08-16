@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Save, RotateCcw, Database, Building2, CreditCard, Trash2, Info, FileSpreadsheet, Cloud, CloudOff, UploadCloud, DownloadCloud } from 'lucide-react';
+import { Save, RotateCcw, Database, Building2, CreditCard, Trash2, Info, FileSpreadsheet, Cloud, CloudOff, UploadCloud, DownloadCloud, MapPin } from 'lucide-react';
 import { useData } from '../store/useData';
 import { Card, Field, Badge } from '../components/ui';
 import { isValidVpa } from '../lib/upi';
@@ -108,6 +108,17 @@ export const Settings: React.FC = () => {
             <input inputMode="numeric" maxLength={4} className="input tracking-widest" value={form.admin_pin} onChange={(e) => setForm({ ...form, admin_pin: e.target.value.replace(/\D/g, '') })} placeholder="1234" />
           </Field>
         </div>
+        <label className="flex items-start gap-3 rounded-xl border border-slate-200 p-3 cursor-pointer">
+          <input type="checkbox" className="mt-1 h-4 w-4 accent-brand-600" checked={!!form.location_required}
+            onChange={(e) => setForm({ ...form, location_required: e.target.checked })} />
+          <span className="flex items-center gap-2">
+            <MapPin size={16} className="text-brand-500 shrink-0" />
+            <span>
+              <span className="block font-semibold text-slate-700 text-sm">Require location for attendance</span>
+              <span className="block text-xs text-slate-400">When on, workers must share their location to open/close attendance. When off, it's optional.</span>
+            </span>
+          </span>
+        </label>
         <button onClick={save} className="btn-primary">
           {saved ? '✓ Saved' : <><Save size={16} /> Save Settings</>}
         </button>

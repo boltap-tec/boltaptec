@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Wallet, HandCoins, TrendingDown, Clock, Send, Banknote, Smartphone,
   ArrowRight, CheckCircle2, XCircle, Sparkles, CalendarDays,
-  LogIn, LogOut, Camera, Fingerprint, FileDown,
+  LogIn, LogOut, Camera, Fingerprint, FileDown, MapPin,
 } from 'lucide-react';
 import { useAuth } from '../store/useAuth';
 import { useData } from '../store/useData';
@@ -13,6 +13,7 @@ import { advancePending, salaryForPeriod } from '../lib/calc';
 import { getDeviceId, shortDeviceId } from '../lib/device';
 import { compressImage } from '../lib/image';
 import { sharePayslip } from '../lib/payslip';
+import { getLocation } from '../lib/geo';
 
 export const EmployeeHome: React.FC = () => {
   const { session } = useAuth();
@@ -25,6 +26,7 @@ export const EmployeeHome: React.FC = () => {
   const [reason, setReason] = useState('');
   const [method, setMethod] = useState<'UPI' | 'Cash'>('UPI');
   const [msg, setMsg] = useState('');
+  const [locating, setLocating] = useState(false);
   const deviceId = getDeviceId();
 
   const myLedger = useMemo(() => ledger.filter((l) => l.employee_id === emp?.employee_id), [ledger, emp]);
@@ -53,13 +55,31 @@ export const EmployeeHome: React.FC = () => {
 
   const flash = (m: string) => { setMsg(m); setTimeout(() => setMsg(''), 3500); };
 
-  const doIn = () => {
+  // Capture location for a punch. When the admin has made it compulsory and we
+  // can't get a fix, returns 'blocked' so the punch is refused.
+  const captureLocation = async (): Promise<{ loc: { lat: number; lng: number } | null; blocked: boolean }> => {
+    setLocating(true);
+    try {
+      const loc = await getLocation();
+      if (!loc && settings.location_required) return { loc: null, blocked: true };
+      return { loc, blocked: false };
+    } finally { setLocating(false); }
+  };
+
+  const doIn = async () => {
     if (emp.device_id && emp.device_id !== deviceId) { flash('❌ This is not your registered phone. Ask your admin to reset your device.'); return; }
+    const { loc, blocked } = await captureLocation();
+    if (blocked) { flash('📍 Please enable location — your admin requires it to open attendance.'); return; }
     if (!emp.device_id) updateEmployee(emp.employee_id, { device_id: deviceId }); // bind on first use
-    const r = markIn(emp.employee_id);
+    const r = markIn(emp.employee_id, loc);
+    flash((r.ok ? '✅ ' : '⚠️ ') + r.msg + (r.ok ? ' · sent to admin for review' : ''));
+  };
+  const doOut = async () => {
+    const { loc, blocked } = await captureLocation();
+    if (blocked) { flash('📍 Please enable location — your admin requires it to close attendance.'); return; }
+    const r = markOut(emp.employee_id, loc);
     flash((r.ok ? '✅ ' : '⚠️ ') + r.msg);
   };
-  const doOut = () => { const r = markOut(emp.employee_id); flash((r.ok ? '✅ ' : '⚠️ ') + r.msg); };
 
   const onPhoto = async (f: File | null) => {
     if (!f) return;
@@ -97,14 +117,14 @@ export const EmployeeHome: React.FC = () => {
           <div>
             <div className="font-bold text-slate-800 flex items-center gap-2"><Clock size={17} className="text-brand-500" /> Today's Attendance</div>
             <div className="text-sm text-slate-500 mt-0.5">
-              {openRow ? <>Marked in at <b className="text-emerald-600">{openRow.time_in}</b> — working now</>
+              {openRow ? <>Opened at <b className="text-emerald-600">{openRow.time_in}</b> — working now</>
                 : doneToday.length ? <>Done for now · {doneHours}h logged today</>
-                : 'Not marked in yet'}
+                : 'Attendance not opened yet'}
             </div>
           </div>
           {openRow
-            ? <button onClick={doOut} className="btn-danger"><LogOut size={18} /> Mark OUT</button>
-            : <button onClick={doIn} disabled={!deviceOk} className="btn-success"><LogIn size={18} /> Mark IN</button>}
+            ? <button onClick={doOut} disabled={locating} className="btn-danger"><LogOut size={18} /> {locating ? 'Locating…' : 'Close Attendance'}</button>
+            : <button onClick={doIn} disabled={!deviceOk || locating} className="btn-success"><LogIn size={18} /> {locating ? 'Locating…' : 'Open Attendance'}</button>}
         </div>
         <div className="mt-3 pt-3 border-t border-slate-100 flex items-center gap-2 text-xs">
           <Fingerprint size={14} className={deviceOk ? 'text-emerald-500' : 'text-rose-500'} />
@@ -112,7 +132,13 @@ export const EmployeeHome: React.FC = () => {
             ? deviceOk
               ? <span className="text-slate-400">Registered phone · {shortDeviceId(emp.device_id)}</span>
               : <span className="text-rose-500 font-semibold">Different phone detected — attendance locked. Ask admin to reset.</span>
-            : <span className="text-slate-400">Your phone registers automatically on first Mark IN.</span>}
+            : <span className="text-slate-400">Your phone registers automatically the first time you open attendance.</span>}
+        </div>
+        <div className="mt-1.5 flex items-center gap-1.5 text-[11px] text-slate-400">
+          <MapPin size={12} />
+          {settings.location_required
+            ? 'Location required — allow it when asked. Admin reviews & posts your attendance.'
+            : 'Your open/close attendance goes to the admin to review & post.'}
         </div>
       </Card>
 

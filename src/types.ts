@@ -41,6 +41,12 @@ export interface Attendance {
   lunch_hours?: number;       // unpaid break deducted from the shift
   paid?: boolean;             // true once salary for this day has been paid
   salary_id?: string | null;  // which salary period paid it
+  source?: 'employee' | 'admin';   // who created the row (default admin)
+  status?: 'pending' | 'posted';   // employee self-punch starts 'pending' until admin posts it
+  open_lat?: number | null;   // location captured when the worker opened attendance
+  open_lng?: number | null;
+  close_lat?: number | null;  // location captured when the worker closed attendance
+  close_lng?: number | null;
 }
 
 export type LedgerCategory = 'Advance_Payment' | 'Advance_Recovery' | 'Salary';
@@ -119,4 +125,5 @@ export interface Settings {
   standard_hours: number;     // hours per day (8)
   lunch_hours: number;        // default unpaid break deducted per shift
   week_start: number;         // 0=Sun..6=Sat
+  location_required: boolean; // if true, workers must share location to open/close attendance
 }

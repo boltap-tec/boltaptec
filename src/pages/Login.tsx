@@ -49,10 +49,14 @@ export const Login: React.FC = () => {
 
   useEffect(() => { biometricSupported().then(setBioOk); }, []);
 
+  // Match on the FULL registered number (normalised to the last 10 digits so a
+  // stored country code doesn't matter). We deliberately do NOT match a partial
+  // suffix — a short/wrong number must never resolve to a worker.
   function matchPhone(p: string) {
-    const digits = p.replace(/\D/g, '');
-    if (!digits) return null;
-    return employees.find((e) => (e.phone || '').replace(/\D/g, '').endsWith(digits)) || null;
+    const norm = (s: string) => { const d = (s || '').replace(/\D/g, ''); return d.length > 10 ? d.slice(-10) : d; };
+    const entered = norm(p);
+    if (entered.length < 6) return null; // too short to be a real number
+    return employees.find((e) => e.phone && norm(e.phone) === entered) || null;
   }
 
   const reset = () => { setStep('phone'); setPhone(''); setPin(''); setWorker(null); setError(''); setPickName(false); };
