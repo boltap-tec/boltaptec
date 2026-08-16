@@ -224,10 +224,11 @@ export const useData = create<DataState>()(
         const emp = get().employees.find((e) => e.employee_id === employeeId);
         if (!emp) return { ok: false, msg: 'Employee not found' };
         const day = today();
+        // Any still-open punch (any date) blocks a new open — close it first.
         const open = get().attendance.find(
-          (a) => a.employee_id === employeeId && a.date === day && !a.time_out,
+          (a) => a.employee_id === employeeId && !a.time_out && a.status !== 'rejected',
         );
-        if (open) return { ok: false, msg: 'You have already opened attendance for today.' };
+        if (open) return { ok: false, msg: 'You already have an open attendance — close it first.' };
         const now = new Date().toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase();
         const row: Attendance = {
           id: uid('att_'), date: day, employee_id: employeeId, employee_name: emp.name,
@@ -240,17 +241,17 @@ export const useData = create<DataState>()(
         return { ok: true, msg: `Opened attendance at ${now}` };
       },
 
-      // Worker self-service Close Attendance. Closes the open row and computes pay.
+      // Worker self-service Close Attendance. Closes the most recent open row
+      // (any date, so overnight/early-morning shifts still close correctly).
       markOut: (employeeId, loc) => {
-        const day = today();
-        const open = get().attendance.find(
-          (a) => a.employee_id === employeeId && a.date === day && !a.time_out,
-        );
-        if (!open) return { ok: false, msg: 'You have not opened attendance yet today.' };
+        const open = get().attendance
+          .filter((a) => a.employee_id === employeeId && !a.time_out && a.status !== 'rejected')
+          .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))[0];
+        if (!open) return { ok: false, msg: 'You have not opened attendance yet.' };
         const now = new Date().toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase();
         const gross = hoursBetween(open.time_in || now, now);
         const lunch = get().settings.lunch_hours || 0;
-        const hrs = Math.max(0, gross - lunch);
+        const hrs = Math.round(Math.max(0, gross - lunch) * 100) / 100;
         const { salary_amount, extra_time } = computeAttendanceSalary(hrs, open.daily_wage);
         set({
           attendance: get().attendance.map((a) =>

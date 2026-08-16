@@ -184,6 +184,28 @@ export interface ProjectPayment {
   remark?: string | null;
 }
 
+export type ExpenditureRequestStatus = 'Pending' | 'Approved' | 'Rejected';
+
+// A worker's request to be reimbursed for money spent on a project (tea, food…).
+// On approval it becomes a project expenditure and the admin pays the worker.
+export interface ExpenditureRequest {
+  id: string;
+  employee_id: string;
+  employee_name: string;
+  project_id: string;
+  project_name: string;
+  category_id: string;
+  category_name: string;
+  amount: number;
+  note: string | null;
+  status: ExpenditureRequestStatus;
+  created_at: string;
+  decided_at: string | null;
+  decided_by: string | null;
+  admin_note: string | null;
+  paid_method: 'Cash' | 'UPI' | null;   // how the worker was reimbursed
+}
+
 export interface Settings {
   business_name: string;
   admin_upi_id: string;       // where employees pay back / receive
@@ -192,4 +214,7 @@ export interface Settings {
   lunch_hours: number;        // default unpaid break deducted per shift
   week_start: number;         // 0=Sun..6=Sat
   location_required: boolean; // if true, workers must share location to open/close attendance
+  today_project_id?: string | null;    // "Today's Plan" — default project for attendance/expense
+  today_project_name?: string | null;
+  today_plan_date?: string | null;     // the date the plan was set for
 }

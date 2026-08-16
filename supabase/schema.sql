@@ -38,6 +38,7 @@ create table if not exists attendance (
   daily_wage    numeric default 0,
   ref_names     text,
   extra_time    numeric default 0,
+  lunch_hours   numeric default 0,       -- unpaid break deducted from the shift
   paid          boolean default false,   -- true once this day's salary is paid
   salary_id     text,                    -- which posting settled it
   source        text,                    -- 'employee' (self-punch) | 'admin'
@@ -118,14 +119,19 @@ create table if not exists settings (
 );
 
 -- Additive migration for databases created before these columns existed.
+alter table attendance add column if not exists lunch_hours numeric default 0;  -- REQUIRED for worker Close Attendance to sync
 alter table attendance add column if not exists source    text;
 alter table attendance add column if not exists status    text;
 alter table attendance add column if not exists open_lat  numeric;
 alter table attendance add column if not exists open_lng  numeric;
 alter table attendance add column if not exists close_lat numeric;
 alter table attendance add column if not exists close_lng numeric;
+alter table attendance add column if not exists project_allocations jsonb;  -- Phase 3: per-project hours split
 alter table settings   add column if not exists lunch_hours       numeric default 1;
 alter table settings   add column if not exists location_required boolean default false;
+alter table settings   add column if not exists today_project_id   text;
+alter table settings   add column if not exists today_project_name text;
+alter table settings   add column if not exists today_plan_date    text;
 
 -- ── Projects module ─────────────────────────────────────────────────────────
 create table if not exists projects (

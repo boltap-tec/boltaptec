@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Plus, Clock, Trash2, Calendar, Users, Search, CheckCircle2, Zap, Pencil, MapPin, Send, Hourglass, XCircle, ClipboardCheck } from 'lucide-react';
 import { useData } from '../store/useData';
 import { Card, Avatar, Modal, Field, EmptyState, Badge } from '../components/ui';
@@ -27,6 +27,13 @@ export const Attendance: React.FC = () => {
   const { employees, attendance, addAttendance, updateAttendance, deleteAttendance, postAttendance, rejectAttendance, settings } = useData();
   const [view, setView] = useState<'ledger' | 'approval'>('ledger');
   const [apprTab, setApprTab] = useState<'pending' | 'approved' | 'rejected'>('pending');
+
+  // Land on the Approval queue when workers have punches waiting (so self-punches
+  // are never missed on the default Ledger view). Runs once on open.
+  useEffect(() => {
+    if (attendance.some((a) => a.status === 'pending')) setView('approval');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [modal, setModal] = useState(false);
   const [date, setDate] = useState(today());
   const [ids, setIds] = useState<string[]>([]);
@@ -208,6 +215,12 @@ export const Attendance: React.FC = () => {
 
       {view === 'ledger' && (
       <>
+      {pending.length > 0 && (
+        <button onClick={() => setView('approval')}
+          className="w-full flex items-center gap-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-700 px-4 py-2.5 text-sm font-semibold">
+          <Hourglass size={16} /> {pending.length} worker punch{pending.length > 1 ? 'es' : ''} waiting for approval — tap to review
+        </button>
+      )}
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="relative flex-1">
           <Search size={17} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />

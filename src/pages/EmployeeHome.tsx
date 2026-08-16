@@ -45,10 +45,11 @@ export const EmployeeHome: React.FC = () => {
   const nextPayday = Math.max(0, sp - Math.min(emp.weekly_recovery || 0, ap));
   const pendingReq = myReq.find((r) => r.status === 'Pending');
 
-  // Today's attendance / punch state
+  // Today's attendance / punch state. The open punch is matched regardless of
+  // date so an overnight or early-morning shift can still be closed.
   const day = today();
   const todays = attendance.filter((a) => a.employee_id === emp.employee_id && a.date === day);
-  const openRow = todays.find((a) => !a.time_out);
+  const openRow = attendance.find((a) => a.employee_id === emp.employee_id && !a.time_out && a.status !== 'rejected');
   const doneToday = todays.filter((a) => a.time_out);
   const doneHours = doneToday.reduce((s, a) => s + a.total_hours, 0);
   const deviceOk = !emp.device_id || emp.device_id === deviceId;

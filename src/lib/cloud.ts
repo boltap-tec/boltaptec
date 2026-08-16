@@ -27,6 +27,25 @@ export const cloudState: { mode: 'cloud' | 'local' | 'connecting'; error: string
 
 type AnyRow = Record<string, any>;
 
+// Upsert that heals over schema lag: if the cloud table is missing a column the
+// row carries (e.g. a new field before its migration is run), drop that column
+// and retry so the rest of the row still syncs instead of the whole call failing.
+async function upsertRows(table: string, rows: AnyRow[], key: string): Promise<void> {
+  let payload = rows;
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const { error } = await supabase!.from(table).upsert(payload, { onConflict: key });
+    if (!error) return;
+    const m = /Could not find the '(\w+)' column/.exec(error.message || '');
+    if (m && m[1]) {
+      const col = m[1];
+      payload = payload.map((r) => { const { [col]: _omit, ...rest } = r; void _omit; return rest; });
+      console.warn(`[cloud] ${table}: '${col}' column not in cloud yet — syncing without it (run schema.sql to keep it)`);
+      continue;
+    }
+    throw error;
+  }
+}
+
 async function fetchAll() {
   const out: Record<string, any[]> = {};
   const present = new Set<string>();
@@ -48,8 +67,8 @@ export async function pushAll() {
   for (const t of TABLES) {
     const rows = st[t.slice] as AnyRow[];
     if (rows && rows.length) {
-      const { error } = await supabase!.from(t.table).upsert(rows, { onConflict: t.key });
-      if (error) console.warn('[cloud] pushAll skipped', t.table, error.message);
+      try { await upsertRows(t.table, rows, t.key); }
+      catch (e: any) { console.warn('[cloud] pushAll skipped', t.table, e?.message || e); }
     }
   }
   await supabase!.from('settings').upsert({ id: 1, ...st.settings }, { onConflict: 'id' });
@@ -107,10 +126,7 @@ async function flush() {
   for (const t of TABLES) {
     try {
       const { changed, removed } = diff(prev.slices[t.slice] || [], next.slices[t.slice] || [], t.key);
-      if (changed.length) {
-        const { error } = await supabase!.from(t.table).upsert(changed, { onConflict: t.key });
-        if (error) throw error;
-      }
+      if (changed.length) await upsertRows(t.table, changed, t.key);
       if (removed.length) {
         const { error } = await supabase!.from(t.table).delete().in(t.key, removed);
         if (error) throw error;

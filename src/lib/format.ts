@@ -22,7 +22,12 @@ export const fmtDateShort = (d: string | Date | null | undefined): string => {
   return dt.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
 };
 
-export const today = (): string => new Date().toISOString().slice(0, 10);
+// Local calendar date (YYYY-MM-DD). Uses local time, not UTC — for IST (UTC+5:30)
+// a UTC date can be a day behind, which broke early-morning open/close matching.
+export const today = (): string => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
 
 export const uid = (prefix = ''): string =>
   prefix + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
