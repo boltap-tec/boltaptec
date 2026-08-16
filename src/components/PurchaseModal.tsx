@@ -1,10 +1,11 @@
 import React, { useMemo, useState } from 'react';
-import { Plus, Trash2, ClipboardPaste, Image as ImageIcon, ShoppingCart } from 'lucide-react';
+import { Plus, Trash2, ClipboardPaste, Image as ImageIcon, ShoppingCart, ScanText, Loader2 } from 'lucide-react';
 import { useData } from '../store/useData';
 import { Modal, Field } from './ui';
 import { inr, today } from '../lib/format';
 import { compressImage } from '../lib/image';
 import { parseTable, guessMapping, toItems, itemsTotal, type StdField } from '../lib/purchase';
+import { ocrFile, fileToDataUrl, hasOcrKey } from '../lib/ocr';
 import type { Project, PurchaseItem } from '../types';
 
 const FIELDS: { key: StdField; label: string }[] = [
@@ -68,6 +69,24 @@ export const PurchaseModal: React.FC<{ open: boolean; project: Project; onClose:
     catch { alert('Could not use that image (use a JPG/PNG photo of the bill).'); }
   };
 
+  // Scan a bill (photo or PDF) with cloud OCR → fill the paste box + guess columns.
+  const [scanning, setScanning] = useState(false);
+  const onScan = async (file: File | null) => {
+    if (!file) return;
+    if (!hasOcrKey()) { alert('Add your Google Vision API key in Settings → Bill Scanning first.'); return; }
+    setScanning(true);
+    try {
+      const dataUrl = await fileToDataUrl(file);
+      const text = await ocrFile(dataUrl, file.type);
+      if (!text.trim()) { alert('No text could be read from that bill. Try a clearer photo.'); return; }
+      setShowPaste(true);
+      reguess(text);
+      if (file.type.startsWith('image/')) { try { setBill(await compressImage(file, 120 * 1024, 900)); } catch { /* keep going */ } }
+    } catch (e: any) {
+      alert('Scan failed: ' + (e?.message || 'OCR error'));
+    } finally { setScanning(false); }
+  };
+
   const cleanItems = items.filter((it) => it.description || it.amount);
   const subtotal = itemsTotal(cleanItems);
   const gst = (Number(cgst) || 0) + (Number(sgst) || 0) + (Number(igst) || 0);
@@ -108,7 +127,13 @@ export const PurchaseModal: React.FC<{ open: boolean; project: Project; onClose:
         <div>
           <div className="flex items-center justify-between mb-1">
             <span className="label flex items-center gap-1"><ShoppingCart size={13} /> Items</span>
-            <button onClick={() => setShowPaste((s) => !s)} className="text-brand-600 text-xs font-semibold flex items-center gap-1"><ClipboardPaste size={13} /> Paste from bill</button>
+            <div className="flex items-center gap-3">
+              <label className={`text-brand-600 text-xs font-semibold flex items-center gap-1 cursor-pointer ${scanning ? 'opacity-60' : ''}`}>
+                {scanning ? <Loader2 size={13} className="animate-spin" /> : <ScanText size={13} />} {scanning ? 'Scanning…' : 'Scan bill (OCR)'}
+                <input type="file" accept="image/*,application/pdf" className="hidden" disabled={scanning} onChange={(e) => { onScan(e.target.files?.[0] || null); e.target.value = ''; }} />
+              </label>
+              <button onClick={() => setShowPaste((s) => !s)} className="text-brand-600 text-xs font-semibold flex items-center gap-1"><ClipboardPaste size={13} /> Paste from bill</button>
+            </div>
           </div>
 
           {showPaste && (

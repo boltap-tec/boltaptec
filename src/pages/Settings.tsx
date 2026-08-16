@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Save, RotateCcw, Database, Building2, CreditCard, Trash2, Info, FileSpreadsheet, Cloud, CloudOff, UploadCloud, DownloadCloud, MapPin, Image as ImageIcon } from 'lucide-react';
+import { Save, RotateCcw, Database, Building2, CreditCard, Trash2, Info, FileSpreadsheet, Cloud, CloudOff, UploadCloud, DownloadCloud, MapPin, Image as ImageIcon, ScanText } from 'lucide-react';
 import { useData } from '../store/useData';
+import { usePrefs } from '../store/usePrefs';
 import { Card, Field, Badge } from '../components/ui';
 import { isValidVpa } from '../lib/upi';
 import { downloadBackup } from '../lib/backup';
@@ -9,6 +10,7 @@ import { cloudEnabled, cloudState, pushAll, pullAll } from '../lib/cloud';
 
 export const Settings: React.FC = () => {
   const { settings, employees, attendance, ledger, resetAll } = useData();
+  const { ocrKey, setOcrKey } = usePrefs();
   const [form, setForm] = useState(settings);
   const [saved, setSaved] = useState(false);
   const [cloudMsg, setCloudMsg] = useState('');
@@ -146,6 +148,18 @@ export const Settings: React.FC = () => {
         <button onClick={save} className="btn-primary">
           {saved ? '✓ Saved' : <><Save size={16} /> Save Settings</>}
         </button>
+      </Card>
+
+      <Card className="p-5 space-y-3">
+        <h3 className="font-bold text-slate-700 flex items-center gap-2"><ScanText size={18} className="text-brand-500" /> Bill Scanning (OCR)</h3>
+        <p className="text-sm text-slate-500">Paste a <b>Google Cloud Vision</b> API key to auto-read purchase bills (photos or PDFs) on the Add Purchase screen.</p>
+        <Field label="Google Vision API Key" hint="Stored on THIS device only — not synced. Restrict the key to the Vision API in Google Cloud.">
+          <input className="input" type="password" value={ocrKey} onChange={(e) => setOcrKey(e.target.value)} placeholder="AIza…" autoComplete="off" />
+        </Field>
+        <div className="rounded-xl bg-sky-50 text-sky-700 p-3 text-xs flex gap-2">
+          <Info size={14} className="shrink-0 mt-0.5" />
+          <span>Get a key at console.cloud.google.com → enable the Cloud Vision API → Credentials → API key. OCR pre-fills the purchase table; always review the rows before saving.</span>
+        </div>
       </Card>
 
       <Card className="p-5 space-y-3">

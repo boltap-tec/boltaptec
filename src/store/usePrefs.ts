@@ -8,8 +8,10 @@ export type Lang = 'en' | 'ta';
 interface PrefsState {
   lang: Lang;
   sound: boolean;        // UI click + notification sounds
+  ocrKey: string;        // Google Vision API key — stored on THIS device only
   setLang: (l: Lang) => void;
   setSound: (s: boolean) => void;
+  setOcrKey: (k: string) => void;
 }
 
 export const usePrefs = create<PrefsState>()(
@@ -17,8 +19,10 @@ export const usePrefs = create<PrefsState>()(
     (set) => ({
       lang: 'en',
       sound: true,
+      ocrKey: '',
       setLang: (lang) => set({ lang }),
       setSound: (sound) => set({ sound }),
+      setOcrKey: (ocrKey) => set({ ocrKey }),
     }),
     { name: 'boltap-prefs-v1' },
   ),
