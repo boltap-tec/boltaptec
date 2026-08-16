@@ -28,24 +28,46 @@ export async function ocrFile(dataUrl: string, mime: string): Promise<string> {
 // isTable=true keeps column alignment so rows map cleanly. Falls back to the
 // shared demo key when the admin hasn't set their own.
 async function ocrSpace(dataUrl: string, mime: string): Promise<string> {
-  const key = usePrefs.getState().ocrKey.trim() || 'helloworld';
+  const ownKey = usePrefs.getState().ocrKey.trim();
+  const key = ownKey || 'helloworld';
+  const usingShared = !ownKey;
+  const addKeyHint = ' Add your own free OCR.space key in Settings → Bill Scanning (the shared demo key is heavily rate-limited).';
+  // apikey goes in the body (not a header) so this stays a simple CORS request.
   const form = new URLSearchParams();
+  form.set('apikey', key);
   form.set('base64Image', dataUrl);
   form.set('isTable', 'true');
   form.set('scale', 'true');
   form.set('language', 'eng');
-  if (mime === 'application/pdf') form.set('filetype', 'PDF');
-  const res = await fetch('https://api.ocr.space/parse/image', {
-    method: 'POST',
-    headers: { apikey: key, 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: form.toString(),
-  });
-  const data = await res.json();
+  // Tell OCR.space it's a PDF from the mime OR the data-URL prefix (phones often
+  // report an empty MIME for picked PDFs, which otherwise fails to process).
+  if (mime === 'application/pdf' || /^data:application\/pdf/i.test(dataUrl)) form.set('filetype', 'PDF');
+
+  let res: Response;
+  try {
+    res = await fetch('https://api.ocr.space/parse/image', {
+      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: form.toString(),
+    });
+  } catch {
+    throw new Error('Could not reach the OCR service — check your internet connection.');
+  }
+  const raw = await res.text();
+  let data: any;
+  try { data = JSON.parse(raw); }
+  catch {
+    if (res.status === 403 || res.status === 429) throw new Error('OCR limit reached.' + (usingShared ? addKeyHint : ''));
+    throw new Error(`OCR service error (${res.status}).`);
+  }
   if (data.IsErroredOnProcessing) {
     const m = Array.isArray(data.ErrorMessage) ? data.ErrorMessage.join(' ') : (data.ErrorMessage || 'OCR failed');
-    throw new Error(m);
+    throw new Error(m + (usingShared && /rate|limit|timed|expired|invalid|key/i.test(m) ? addKeyHint : ''));
   }
-  return (data.ParsedResults || []).map((r: any) => r.ParsedText || '').join('\n').trim();
+  const text = (data.ParsedResults || []).map((r: any) => r.ParsedText || '').join('\n').trim();
+  if (!text) {
+    const perr = data.ParsedResults?.[0]?.ErrorMessage;
+    throw new Error((perr || 'No text was returned by the OCR service.') + (usingShared ? addKeyHint : ' Try a clearer photo.'));
+  }
+  return text;
 }
 
 // OCR via Google Cloud Vision (DOCUMENT_TEXT_DETECTION). Images → images:annotate;

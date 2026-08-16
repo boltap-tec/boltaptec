@@ -76,11 +76,18 @@ export const PurchaseModal: React.FC<{ open: boolean; project: Project; onClose:
     if (!ocrReady()) { alert('Set up bill scanning in Settings → Bill Scanning first.'); return; }
     setScanning(true);
     try {
-      const isImg = file.type.startsWith('image/');
-      // Compress photos to stay under the free-tier size limit and speed up OCR.
-      const dataUrl = isImg ? await compressImage(file, 900 * 1024, 1600) : await fileToDataUrl(file);
-      const text = await ocrFile(dataUrl, isImg ? 'image/jpeg' : file.type);
-      if (!text.trim()) { alert('No text could be read from that bill. Try a clearer photo.'); return; }
+      // Detect PDF by extension too — phones often report an empty/octet-stream MIME.
+      const name = file.name || '';
+      const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(name);
+      const isImg = !isPdf && (file.type.startsWith('image/') || /\.(jpe?g|png|webp|heic|heif|bmp)$/i.test(name));
+      let dataUrl: string;
+      if (isImg) {
+        try { dataUrl = await compressImage(file, 900 * 1024, 1600); }
+        catch { dataUrl = await fileToDataUrl(file); }  // fall back if it's not a canvas-decodable image
+      } else {
+        dataUrl = await fileToDataUrl(file);
+      }
+      const text = await ocrFile(dataUrl, isPdf ? 'application/pdf' : (isImg ? 'image/jpeg' : file.type));
       setShowPaste(true);
       reguess(text);
       if (isImg) { try { setBill(await compressImage(file, 120 * 1024, 900)); } catch { /* keep going */ } }
