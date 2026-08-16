@@ -179,6 +179,10 @@ export interface ProjectExpenditure {
   remark?: string | null;
   images?: string[] | null;    // bill photos
   items?: PurchaseItem[] | null;  // line items for a purchase (from paste/mapping or manual)
+  vendor?: string | null;      // "bought from" — supplier on the bill
+  cgst?: number | null;        // GST components on a purchase bill
+  sgst?: number | null;
+  igst?: number | null;
   source?: 'admin' | 'worker_request';
 }
 

@@ -176,10 +176,18 @@ create table if not exists project_expenditure (
   remark        text,
   images        jsonb,
   items         jsonb,                    -- purchase line items
+  vendor        text,                     -- "bought from"
+  cgst          numeric,
+  sgst          numeric,
+  igst          numeric,
   source        text default 'admin'      -- admin | worker_request
 );
 create index if not exists project_exp_pid on project_expenditure(project_id);
-alter table project_expenditure add column if not exists items jsonb;
+alter table project_expenditure add column if not exists items  jsonb;
+alter table project_expenditure add column if not exists vendor text;
+alter table project_expenditure add column if not exists cgst   numeric;
+alter table project_expenditure add column if not exists sgst   numeric;
+alter table project_expenditure add column if not exists igst   numeric;
 
 create table if not exists project_payments (
   id           text primary key,

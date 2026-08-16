@@ -21,7 +21,11 @@ export const PurchaseModal: React.FC<{ open: boolean; project: Project; onClose:
 
   const [categoryId, setCategoryId] = useState(defaultCat?.category_id || '');
   const [date, setDate] = useState(today());
+  const [vendor, setVendor] = useState('');
   const [items, setItems] = useState<PurchaseItem[]>([{ description: '', qty: 0, rate: 0, amount: 0 }]);
+  const [cgst, setCgst] = useState('');
+  const [sgst, setSgst] = useState('');
+  const [igst, setIgst] = useState('');
   const [bill, setBill] = useState<string | null>(null);
   const [remark, setRemark] = useState('');
 
@@ -65,7 +69,9 @@ export const PurchaseModal: React.FC<{ open: boolean; project: Project; onClose:
   };
 
   const cleanItems = items.filter((it) => it.description || it.amount);
-  const total = itemsTotal(cleanItems);
+  const subtotal = itemsTotal(cleanItems);
+  const gst = (Number(cgst) || 0) + (Number(sgst) || 0) + (Number(igst) || 0);
+  const total = subtotal + gst;
 
   const save = () => {
     const cat = visibleCats.find((c) => c.category_id === categoryId) || defaultCat;
@@ -73,12 +79,15 @@ export const PurchaseModal: React.FC<{ open: boolean; project: Project; onClose:
     addExpenditure({
       project_id: project.project_id, project_name: project.name, date,
       category_id: cat.category_id, category_name: cat.name,
-      description: `Purchase · ${cleanItems.length} item${cleanItems.length > 1 ? 's' : ''}`,
+      description: `Purchase · ${cleanItems.length} item${cleanItems.length > 1 ? 's' : ''}${vendor.trim() ? ` · ${vendor.trim()}` : ''}`,
       amount: total, remark: remark.trim() || null,
       images: bill ? [bill] : null, items: cleanItems, source: 'admin',
+      vendor: vendor.trim() || null,
+      cgst: Number(cgst) || null, sgst: Number(sgst) || null, igst: Number(igst) || null,
     });
     // reset
     setItems([{ description: '', qty: 0, rate: 0, amount: 0 }]); setBill(null); setRemark(''); setPasteText('');
+    setVendor(''); setCgst(''); setSgst(''); setIgst('');
     onClose();
   };
 
@@ -93,6 +102,7 @@ export const PurchaseModal: React.FC<{ open: boolean; project: Project; onClose:
           </Field>
           <Field label="Date"><input type="date" className="input" value={date} onChange={(e) => setDate(e.target.value)} /></Field>
         </div>
+        <Field label="Bought from (vendor / shop)"><input className="input" value={vendor} onChange={(e) => setVendor(e.target.value)} placeholder="e.g. Sri Balaji Traders" /></Field>
 
         {/* Standard purchase table */}
         <div>
@@ -156,9 +166,23 @@ export const PurchaseModal: React.FC<{ open: boolean; project: Project; onClose:
           </div>
         </div>
 
-        <div className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2">
-          <span className="text-sm font-semibold text-slate-500">Total</span>
-          <span className="text-lg font-extrabold text-slate-800">{inr(total)}</span>
+        {/* GST breakdown */}
+        <div>
+          <span className="label">GST (enter amounts from the bill)</span>
+          <div className="grid grid-cols-3 gap-2">
+            <label className="text-xs"><span className="block text-slate-400 font-semibold mb-0.5">CGST ₹</span>
+              <input className="input py-1.5 text-sm" inputMode="decimal" value={cgst} onChange={(e) => setCgst(e.target.value)} placeholder="0" /></label>
+            <label className="text-xs"><span className="block text-slate-400 font-semibold mb-0.5">SGST ₹</span>
+              <input className="input py-1.5 text-sm" inputMode="decimal" value={sgst} onChange={(e) => setSgst(e.target.value)} placeholder="0" /></label>
+            <label className="text-xs"><span className="block text-slate-400 font-semibold mb-0.5">IGST ₹</span>
+              <input className="input py-1.5 text-sm" inputMode="decimal" value={igst} onChange={(e) => setIgst(e.target.value)} placeholder="0" /></label>
+          </div>
+        </div>
+
+        <div className="rounded-xl bg-slate-50 px-3 py-2 space-y-1">
+          <div className="flex items-center justify-between text-sm text-slate-500"><span>Subtotal</span><span>{inr(subtotal)}</span></div>
+          {gst > 0 && <div className="flex items-center justify-between text-sm text-slate-500"><span>GST</span><span>{inr(gst)}</span></div>}
+          <div className="flex items-center justify-between border-t border-slate-200 pt-1"><span className="text-sm font-semibold text-slate-600">Grand Total</span><span className="text-lg font-extrabold text-slate-800">{inr(total)}</span></div>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
