@@ -5,6 +5,7 @@ import { Card, Avatar, Modal, Field, EmptyState, Badge } from '../components/ui'
 import { inr, today, fmtDate, nowClock24, to12h, to24h } from '../lib/format';
 import { hoursBetween, computeAttendanceSalary, STANDARD_HOURS, hourlyRate } from '../lib/calc';
 import { hasCoords, mapsLink, fmtCoords } from '../lib/geo';
+import { confirmAction } from '../lib/guard';
 import type { Attendance as AttRow } from '../types';
 
 // A tappable location pill that opens the punch spot in Google Maps.
@@ -182,7 +183,7 @@ export const Attendance: React.FC = () => {
             <button onClick={() => postAttendance(a.id)} className="btn-ghost px-2.5 py-1 text-xs text-emerald-600"><CheckCircle2 size={13} /> Approve instead</button>
           )}
           {a.status === 'posted' && <span className="text-[11px] text-emerald-600 font-semibold px-1 inline-flex items-center gap-1"><CheckCircle2 size={12} /> In ledger</span>}
-          <button onClick={() => deleteAttendance(a.id)} className="p-1.5 rounded-lg text-rose-300 hover:bg-rose-50"><Trash2 size={14} /></button>
+          <button onClick={() => { if (confirmAction(`Delete ${a.employee_name}'s attendance?`)) deleteAttendance(a.id); }} className="p-1.5 rounded-lg text-rose-300 hover:bg-rose-50"><Trash2 size={14} /></button>
         </div>
       </div>
     );
@@ -289,7 +290,7 @@ export const Attendance: React.FC = () => {
                       <button onClick={() => openEdit(a)} className="p-1.5 rounded-lg text-slate-300 hover:bg-slate-100 hover:text-brand-500 opacity-0 group-hover:opacity-100">
                         <Pencil size={14} />
                       </button>
-                      <button onClick={() => deleteAttendance(a.id)} className="p-1.5 rounded-lg text-rose-300 hover:bg-rose-50 opacity-0 group-hover:opacity-100">
+                      <button onClick={() => { if (confirmAction(`Delete ${a.employee_name}'s attendance?`)) deleteAttendance(a.id); }} className="p-1.5 rounded-lg text-rose-300 hover:bg-rose-50 opacity-0 group-hover:opacity-100">
                         <Trash2 size={14} />
                       </button>
                     </div>

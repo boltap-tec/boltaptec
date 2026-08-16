@@ -8,6 +8,7 @@ import { useData } from '../store/useData';
 import { Card, Modal, Field, Badge, EmptyState, StatCard } from '../components/ui';
 import { inr, fmtDate, today } from '../lib/format';
 import { projectFinance, labourFromAttendance, LABOUR_CATEGORY_ID } from '../lib/projects';
+import { confirmAction, confirmProtected } from '../lib/guard';
 import type { ProjectStatus } from '../types';
 
 const statusTone = (s: ProjectStatus) => (s === 'Completed' ? 'green' : s === 'Cancelled' ? 'red' : 'brand');
@@ -145,7 +146,7 @@ export const ProjectDetail: React.FC = () => {
                   <div className="text-xs text-slate-400">{fmtDate(e.date)}{e.source === 'worker_request' ? ' · worker request' : ''}{e.remark ? ` · ${e.remark}` : ''}</div>
                 </div>
                 <span className="text-sm font-bold text-slate-700">{inr(e.amount)}</span>
-                <button onClick={() => deleteExpenditure(e.id)} className="p-1.5 rounded-lg text-rose-300 hover:bg-rose-50 opacity-0 group-hover:opacity-100"><Trash2 size={14} /></button>
+                <button onClick={() => { if (confirmAction('Delete this expenditure?')) deleteExpenditure(e.id); }} className="p-1.5 rounded-lg text-rose-300 hover:bg-rose-50 opacity-0 group-hover:opacity-100"><Trash2 size={14} /></button>
               </div>
             ))}
           </div>
@@ -169,14 +170,14 @@ export const ProjectDetail: React.FC = () => {
                   <div className="text-sm font-semibold text-slate-700">{inr(x.amount)}</div>
                   <div className="text-xs text-slate-400">{fmtDate(x.date)} · {x.method || 'Cash'}{x.remark ? ` · ${x.remark}` : ''}</div>
                 </div>
-                <button onClick={() => deletePayment(x.id)} className="p-1.5 rounded-lg text-rose-300 hover:bg-rose-50 opacity-0 group-hover:opacity-100"><Trash2 size={14} /></button>
+                <button onClick={() => { if (confirmAction('Delete this payment?')) deletePayment(x.id); }} className="p-1.5 rounded-lg text-rose-300 hover:bg-rose-50 opacity-0 group-hover:opacity-100"><Trash2 size={14} /></button>
               </div>
             ))}
           </div>
         )}
       </Card>
 
-      <button onClick={() => { if (confirm(`Delete project "${project.name}" and all its expenditure & payments?`)) { deleteProject(project.project_id); navigate('/projects'); } }}
+      <button onClick={() => { if (confirmProtected(`Delete project "${project.name}" and all its expenditure & payments?`)) { deleteProject(project.project_id); navigate('/projects'); } }}
         className="btn-danger w-full"><Trash2 size={16} /> Delete Project</button>
 
       {/* Record payment */}

@@ -148,4 +148,5 @@ export const defaultSettings = (): Settings => ({
   lunch_hours: 1,
   week_start: 6, // Saturday, matching the sample data
   location_required: false,
+  delete_password: '1234',
 });

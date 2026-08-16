@@ -213,6 +213,7 @@ export interface Settings {
   admin_pin: string;          // admin login PIN (local demo only)
   standard_hours: number;     // hours per day (8)
   lunch_hours: number;        // default unpaid break deducted per shift
+  delete_password?: string;   // required to delete a project or an employee
   week_start: number;         // 0=Sun..6=Sat
   location_required: boolean; // if true, workers must share location to open/close attendance
   today_project_id?: string | null;    // "Today's Plan" — default project for attendance/expense

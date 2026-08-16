@@ -115,6 +115,7 @@ create table if not exists settings (
   admin_pin         text,
   standard_hours    numeric default 8,
   lunch_hours       numeric default 1,
+  delete_password   text,
   week_start        int default 6,
   location_required boolean default false
 );
@@ -134,6 +135,7 @@ alter table settings   add column if not exists today_project_id   text;
 alter table settings   add column if not exists today_project_name text;
 alter table settings   add column if not exists today_plan_date    text;
 alter table settings   add column if not exists logo               text;
+alter table settings   add column if not exists delete_password    text;
 
 -- ── Projects module ─────────────────────────────────────────────────────────
 create table if not exists projects (

@@ -7,6 +7,7 @@ import { Card, Avatar, Modal, Field, EmptyState, StatusDot } from '../components
 import { inr } from '../lib/format';
 import { advancePending } from '../lib/calc';
 import { isValidVpa } from '../lib/upi';
+import { confirmProtected } from '../lib/guard';
 
 const blank = { name: '', address: '', phone: '', daily_wage: '', upi_id: '', pin: '', status: 'Active' as const };
 
@@ -55,7 +56,7 @@ export const Employees: React.FC = () => {
   };
 
   const remove = (e: Employee) => {
-    if (confirm(`Delete ${e.name}? This cannot be undone.`)) deleteEmployee(e.employee_id);
+    if (confirmProtected(`Delete ${e.name}? This cannot be undone.`)) deleteEmployee(e.employee_id);
   };
 
   return (

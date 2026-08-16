@@ -128,6 +128,9 @@ export const Settings: React.FC = () => {
           <Field label="Admin PIN (4 digits)" hint="Used to log in as Admin.">
             <input inputMode="numeric" maxLength={4} className="input tracking-widest" value={form.admin_pin} onChange={(e) => setForm({ ...form, admin_pin: e.target.value.replace(/\D/g, '') })} placeholder="1234" />
           </Field>
+          <Field label="Delete Password" hint="Required to delete a project or an employee.">
+            <input className="input tracking-widest" value={form.delete_password || ''} onChange={(e) => setForm({ ...form, delete_password: e.target.value })} placeholder="1234" />
+          </Field>
         </div>
         <label className="flex items-start gap-3 rounded-xl border border-slate-200 p-3 cursor-pointer">
           <input type="checkbox" className="mt-1 h-4 w-4 accent-brand-600" checked={!!form.location_required}
