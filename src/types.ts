@@ -42,7 +42,11 @@ export interface Attendance {
   paid?: boolean;             // true once salary for this day has been paid
   salary_id?: string | null;  // which salary period paid it
   source?: 'employee' | 'admin';   // who created the row (default admin)
-  status?: 'pending' | 'posted';   // employee self-punch starts 'pending' until admin posts it
+  // employee self-punch starts 'pending'; admin approves → 'posted' (ledger) or rejects → 'rejected'
+  status?: 'pending' | 'posted' | 'rejected';
+  reject_reason?: string | null;
+  decided_by?: string | null;
+  decided_at?: string | null;
   open_lat?: number | null;   // location captured when the worker opened attendance
   open_lng?: number | null;
   close_lat?: number | null;  // location captured when the worker closed attendance

@@ -7,7 +7,52 @@ import {
 import { useAuth } from '../store/useAuth';
 import { useData } from '../store/useData';
 import { cloudEnabled, pullAll } from '../lib/cloud';
+import { beep } from '../lib/alarm';
 import { Avatar } from './ui';
+
+// Admin bell: shows pending approvals and links straight to them.
+const NotificationBell: React.FC<{ attn: number; adv: number }> = ({ attn, adv }) => {
+  const [open, setOpen] = React.useState(false);
+  const navigate = useNavigate();
+  const total = attn + adv;
+  const go = (to: string) => { setOpen(false); navigate(to); };
+  return (
+    <div className="relative">
+      <button onClick={() => setOpen((o) => !o)} className="relative p-2 text-slate-500 hover:bg-slate-100 rounded-lg" title="Notifications">
+        <Bell size={19} />
+        {total > 0 && (
+          <span className="absolute top-0.5 right-0.5 min-w-[16px] h-4 px-1 bg-rose-500 text-white text-[9px] font-bold grid place-items-center rounded-full">{total}</span>
+        )}
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 mt-1 w-64 bg-white rounded-xl shadow-lg border border-slate-100 z-50 overflow-hidden">
+            <div className="px-3 py-2 text-xs font-bold text-slate-400 border-b border-slate-50">Notifications</div>
+            {total === 0 ? (
+              <div className="px-3 py-4 text-sm text-slate-400 text-center">All clear 🎉</div>
+            ) : (
+              <>
+                {attn > 0 && (
+                  <button onClick={() => go('/attendance')} className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-slate-50 text-left text-sm">
+                    <span className="h-8 w-8 rounded-lg bg-amber-100 text-amber-600 grid place-items-center"><CalendarClock size={16} /></span>
+                    <span className="flex-1 text-slate-700"><b>{attn}</b> attendance to approve</span>
+                  </button>
+                )}
+                {adv > 0 && (
+                  <button onClick={() => go('/advances')} className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-slate-50 text-left text-sm">
+                    <span className="h-8 w-8 rounded-lg bg-brand-100 text-brand-600 grid place-items-center"><HandCoins size={16} /></span>
+                    <span className="flex-1 text-slate-700"><b>{adv}</b> advance request{adv > 1 ? 's' : ''}</span>
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
 
 const adminNav = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
@@ -29,7 +74,18 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   const { session, logout } = useAuth();
   const navigate = useNavigate();
   const pendingReqs = useData((s) => s.requests.filter((r) => r.status === 'Pending').length);
+  const pendingAtt = useData((s) => s.attendance.filter((a) => a.status === 'pending').length);
   const isAdmin = session?.role === 'admin';
+  const totalAlerts = isAdmin ? pendingReqs + pendingAtt : 0;
+
+  // Sound an alarm when a new approval request arrives (not on first load).
+  const prevAlerts = React.useRef(0);
+  const inited = React.useRef(false);
+  React.useEffect(() => {
+    if (isAdmin && inited.current && totalAlerts > prevAlerts.current) beep();
+    inited.current = true;
+    prevAlerts.current = totalAlerts;
+  }, [totalAlerts, isAdmin]);
 
   const items = isAdmin ? adminNav : workerNav;
   const mobileItems = isAdmin ? items.slice(0, 5) : items;
@@ -64,10 +120,13 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
             <div className="font-extrabold text-slate-800 leading-tight">BoltAp</div>
             <div className="text-[10px] text-slate-400 font-medium">Workforce Manager</div>
           </div>
-          <button onClick={refresh} disabled={refreshing} title="Refresh data"
-            className="ml-auto p-2 rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-50">
-            <RefreshCw size={17} className={refreshing ? 'animate-spin' : ''} />
-          </button>
+          <div className="ml-auto flex items-center gap-0.5">
+            {isAdmin && <NotificationBell attn={pendingAtt} adv={pendingReqs} />}
+            <button onClick={refresh} disabled={refreshing} title="Refresh data"
+              className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-50">
+              <RefreshCw size={17} className={refreshing ? 'animate-spin' : ''} />
+            </button>
+          </div>
         </div>
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
           {items.map((n) => (
@@ -114,14 +173,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
             <button onClick={refresh} disabled={refreshing} className="p-2 text-slate-500 disabled:opacity-50" title="Refresh data">
               <RefreshCw size={18} className={refreshing ? 'animate-spin' : ''} />
             </button>
-            <button className="relative p-2 text-slate-500">
-              <Bell size={19} />
-              {isAdmin && pendingReqs > 0 && (
-                <span className="absolute top-1 right-1 h-4 w-4 bg-rose-500 text-white text-[9px] font-bold grid place-items-center rounded-full">
-                  {pendingReqs}
-                </span>
-              )}
-            </button>
+            {isAdmin && <NotificationBell attn={pendingAtt} adv={pendingReqs} />}
             <button onClick={doLogout} className="p-2 text-slate-500"><LogOut size={18} /></button>
           </div>
         </header>

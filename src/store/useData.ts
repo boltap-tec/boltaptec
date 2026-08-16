@@ -31,8 +31,10 @@ interface DataState {
   deleteAttendance: (id: string) => void;
   markIn: (employeeId: string, loc?: { lat: number; lng: number } | null) => { ok: boolean; msg: string };
   markOut: (employeeId: string, loc?: { lat: number; lng: number } | null) => { ok: boolean; msg: string };
-  // Admin confirms an employee self-punch → it becomes a normal posted record.
-  postAttendance: (id: string) => void;
+  // Admin approves an employee self-punch → posted (enters the attendance ledger).
+  postAttendance: (id: string, decidedBy?: string) => void;
+  // Admin rejects a self-punch → kept as 'rejected' (visible in the Rejected tab).
+  rejectAttendance: (id: string, reason?: string, decidedBy?: string) => void;
 
   // advances
   giveAdvance: (employeeId: string, amount: number, method: 'Cash' | 'UPI', note?: string, weeklyRecovery?: number, date?: string) => void;
@@ -185,11 +187,19 @@ export const useData = create<DataState>()(
         return { ok: true, msg: `Closed attendance at ${now} · ${hrs}h (−${lunch}h lunch)` };
       },
 
-      // Admin confirms a worker's self-punch → posted (counts for payroll).
-      postAttendance: (id) =>
+      // Admin approves a worker's self-punch → posted (counts for payroll & projects).
+      postAttendance: (id, decidedBy) =>
         set({
           attendance: get().attendance.map((a) =>
-            a.id === id ? { ...a, status: 'posted' } : a,
+            a.id === id ? { ...a, status: 'posted', decided_by: decidedBy ?? 'Admin', decided_at: new Date().toISOString(), reject_reason: null } : a,
+          ),
+        }),
+
+      // Admin rejects a worker's self-punch → kept for the record, never paid.
+      rejectAttendance: (id, reason, decidedBy) =>
+        set({
+          attendance: get().attendance.map((a) =>
+            a.id === id ? { ...a, status: 'rejected', reject_reason: reason ?? null, decided_by: decidedBy ?? 'Admin', decided_at: new Date().toISOString() } : a,
           ),
         }),
 
@@ -308,7 +318,7 @@ export const useData = create<DataState>()(
         get().employees.forEach((e) => {
           const rows = attendance.filter(
             (a) => a.employee_id === e.employee_id && a.date >= from && a.date <= to && !a.paid &&
-              a.status !== 'pending', // only admin-posted days are payable
+              a.status !== 'pending' && a.status !== 'rejected', // only approved/legacy days are payable
           );
           const gross = rows.reduce((s, a) => s + a.salary_amount, 0);
           if (rows.length === 0 || gross <= 0) return;
