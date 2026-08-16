@@ -179,6 +179,20 @@ function applyRealtime(table: string, evt: string, row: AnyRow | null, oldRow: A
   }
 }
 
+// Fallback poll: pull the cloud every 15s so new requests reach the admin even
+// if the realtime websocket can't connect (some networks block it). Skips when
+// the tab is hidden. Marked as realtime so it doesn't echo back as a push.
+let pollTimer: any;
+function startPolling() {
+  clearInterval(pollTimer);
+  pollTimer = setInterval(async () => {
+    if (typeof document !== 'undefined' && document.hidden) return;
+    applyingRealtime = true;
+    try { await pullAll(); } catch { /* ignore, try again next tick */ }
+    finally { applyingRealtime = false; }
+  }, 15000);
+}
+
 // Live sync: push other devices' inserts/updates/deletes into this app instantly.
 function startRealtime() {
   supabase!.removeAllChannels(); // avoid duplicate channel on re-init
@@ -211,6 +225,7 @@ export async function initCloud(): Promise<{ mode: 'cloud' | 'local'; error?: st
       started = true;
       startSync();
       try { startRealtime(); } catch (e) { console.error('[cloud] realtime setup failed (sync still works):', e); }
+      startPolling();
     }
     cloudState.mode = 'cloud';
     return { mode: 'cloud' };

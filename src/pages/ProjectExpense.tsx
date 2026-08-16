@@ -25,13 +25,11 @@ export const ProjectExpense: React.FC = () => {
   const [editReq, setEditReq] = useState<ExpenditureRequest | null>(null);
   const [payFor, setPayFor] = useState<ExpenditureRequest | null>(null);
   const [payMethod, setPayMethod] = useState<'Cash' | 'UPI'>('UPI');
+  const [payProject, setPayProject] = useState('');   // project admin assigns at approval
 
-  // request form
-  const blank = {
-    project_id: planActive || activeProjects[0]?.project_id || '',
-    category_id: visibleCats[0]?.category_id || '',
-    amount: '', note: '',
-  };
+  // Worker request form — the worker doesn't pick a project; it defaults to
+  // Today's Work and the admin confirms/changes it when approving.
+  const blank = { category_id: visibleCats[0]?.category_id || '', amount: '', note: '' };
   const [f, setF] = useState(blank);
 
   const myEmp = employees.find((e) => e.employee_id === session?.employee_id);
@@ -46,22 +44,30 @@ export const ProjectExpense: React.FC = () => {
 
   const submit = () => {
     const amt = Number(f.amount);
-    const emp = isAdmin ? null : myEmp;
-    const eid = emp?.employee_id || session?.employee_id || '';
-    const ename = emp?.name || session?.name || '';
-    const proj = projects.find((p) => p.project_id === f.project_id);
-    const cat = visibleCats.find((c) => c.category_id === f.category_id);
-    if (!amt || amt <= 0 || !proj || !cat || !eid) return;
+    const eid = session?.employee_id || myEmp?.employee_id || '';
+    const ename = myEmp?.name || session?.name || '';
+    const cat = visibleCats.find((c) => c.category_id === f.category_id) || visibleCats[0];
+    if (!amt || amt <= 0 || !cat || !eid) return;
+    // Project defaults to Today's Work; blank if none is set (admin assigns later).
+    const proj = planActive ? projects.find((p) => p.project_id === planActive) : null;
     createExpenditureRequest({
       employee_id: eid, employee_name: ename,
-      project_id: proj.project_id, project_name: proj.name,
+      project_id: proj?.project_id || '', project_name: proj?.name || '',
       category_id: cat.category_id, category_name: cat.name,
       amount: amt, note: f.note.trim() || null,
     });
     setReqOpen(false);
   };
 
+  const openApprove = (r: ExpenditureRequest) => {
+    const e = employees.find((x) => x.employee_id === r.employee_id);
+    setPayFor(r);
+    setPayMethod(e?.upi_id ? 'UPI' : 'Cash');
+    setPayProject(r.project_id || planActive || activeProjects[0]?.project_id || '');
+  };
   const doApprove = (r: ExpenditureRequest, method: 'Cash' | 'UPI') => {
+    const proj = projects.find((p) => p.project_id === payProject);
+    if (proj) updateExpenditureRequest(r.id, { project_id: proj.project_id, project_name: proj.name });
     approveExpenditureRequest(r.id, session?.name || 'Admin', method);
   };
 
@@ -110,7 +116,7 @@ export const ProjectExpense: React.FC = () => {
                         <Badge tone="brand">{r.category_name}</Badge>
                         <span className="text-xs text-slate-400">{fmtDate(r.created_at)}</span>
                       </div>
-                      <div className="text-sm text-slate-500 mt-0.5">{r.project_name}{r.note ? ` · ${r.note}` : ''}</div>
+                      <div className="text-sm text-slate-500 mt-0.5">{r.project_name || <span className="italic text-slate-400">No project — assign on approval</span>}{r.note ? ` · ${r.note}` : ''}</div>
                     </div>
                     <div className="text-right flex items-start gap-1">
                       <div className="text-xl font-extrabold text-slate-800">{inr(r.amount)}</div>
@@ -120,7 +126,7 @@ export const ProjectExpense: React.FC = () => {
                   {isAdmin ? (
                     <div className="flex gap-2 mt-3 pt-3 border-t border-slate-100">
                       <button onClick={() => rejectExpenditureRequest(r.id, session?.name || 'Admin')} className="btn-ghost flex-1 text-rose-600"><X size={16} /> Reject</button>
-                      <button onClick={() => { setPayFor(r); setPayMethod(e?.upi_id ? 'UPI' : 'Cash'); }} className="btn-success flex-1"><Check size={16} /> Approve & Pay</button>
+                      <button onClick={() => openApprove(r)} className="btn-success flex-1"><Check size={16} /> Approve & Pay</button>
                     </div>
                   ) : (
                     <div className="mt-2 text-xs text-amber-600 font-semibold">Waiting for admin approval…</div>
@@ -163,12 +169,9 @@ export const ProjectExpense: React.FC = () => {
               <div className="font-semibold text-slate-700">{myEmp.name}</div>
             </div>
           )}
-          <Field label="Project" hint={planActive ? "Defaults to today's work — change if needed." : undefined}>
-            <select className="input" value={f.project_id} onChange={(e) => setF({ ...f, project_id: e.target.value })}>
-              <option value="">Select project…</option>
-              {activeProjects.map((p) => <option key={p.project_id} value={p.project_id}>{p.name}{p.project_id === planActive ? ' (today)' : ''}</option>)}
-            </select>
-          </Field>
+          <div className="rounded-xl bg-brand-50 text-brand-700 px-3 py-2 text-sm font-semibold">
+            {planActive ? <>Project: {settings.today_project_name} <span className="font-normal text-brand-500">(today's work)</span></> : "The admin will assign the project when approving."}
+          </div>
           <Field label="Category (what did you spend on?)">
             <select className="input" value={f.category_id} onChange={(e) => setF({ ...f, category_id: e.target.value })}>
               {visibleCats.map((c) => <option key={c.category_id} value={c.category_id}>{c.name}</option>)}
@@ -180,7 +183,7 @@ export const ProjectExpense: React.FC = () => {
           </div>
           <div className="flex gap-2 pt-1">
             <button onClick={() => setReqOpen(false)} className="btn-ghost flex-1">Cancel</button>
-            <button onClick={submit} disabled={!f.amount || !f.project_id} className="btn-primary flex-1"><Send size={16} /> Send Request</button>
+            <button onClick={submit} disabled={!f.amount} className="btn-primary flex-1"><Send size={16} /> Send Request</button>
           </div>
         </div>
       </Modal>
@@ -221,9 +224,15 @@ export const ProjectExpense: React.FC = () => {
             <div className="space-y-3">
               <div className="rounded-xl bg-slate-50 p-3 text-sm">
                 <div className="font-bold text-slate-700">{inr(payFor.amount)} · {payFor.category_name}</div>
-                <div className="text-slate-500">{payFor.project_name}{payFor.note ? ` · ${payFor.note}` : ''} — {payFor.employee_name}</div>
+                <div className="text-slate-500">{payFor.note || '—'} — {payFor.employee_name}</div>
                 <div className="text-xs text-slate-400 mt-1">Added to the project's expenditure (not to {payFor.employee_name}'s advances).</div>
               </div>
+              <Field label="Add to project" hint={planActive ? "Defaults to today's work." : undefined}>
+                <select className="input" value={payProject} onChange={(ev) => setPayProject(ev.target.value)}>
+                  <option value="">Select project…</option>
+                  {activeProjects.map((p) => <option key={p.project_id} value={p.project_id}>{p.name}{p.project_id === planActive ? ' (today)' : ''}</option>)}
+                </select>
+              </Field>
               <Field label="Reimburse the worker by">
                 <div className="grid grid-cols-2 gap-2">
                   {(['UPI', 'Cash'] as const).map((m) => (
@@ -240,7 +249,7 @@ export const ProjectExpense: React.FC = () => {
               )}
               <div className="flex gap-2 pt-1">
                 <button onClick={() => setPayFor(null)} className="btn-ghost flex-1">Cancel</button>
-                <button onClick={() => { doApprove(payFor, payMethod); setPayFor(null); }} className="btn-success flex-1">
+                <button onClick={() => { doApprove(payFor, payMethod); setPayFor(null); }} disabled={!payProject} className="btn-success flex-1">
                   <HandCoins size={16} /> Approve ({payMethod})
                 </button>
               </div>

@@ -37,8 +37,8 @@ export const Attendance: React.FC = () => {
   const [modal, setModal] = useState(false);
   const [date, setDate] = useState(today());
   const [ids, setIds] = useState<string[]>([]);
-  const [timeIn, setTimeIn] = useState('09:00');   // 24h for <input type="time">
-  const [timeOut, setTimeOut] = useState('18:00');
+  const [timeIn, setTimeIn] = useState('09:30');   // 24h for <input type="time">
+  const [timeOut, setTimeOut] = useState('18:30');
   const [lunch, setLunch] = useState(settings.lunch_hours ?? 1);
   const [filterDate, setFilterDate] = useState('');
   const [q, setQ] = useState('');
