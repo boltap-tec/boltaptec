@@ -9,14 +9,48 @@ export const fileToDataUrl = (file: File): Promise<string> =>
     r.readAsDataURL(file);
   });
 
-export const hasOcrKey = (): boolean => !!usePrefs.getState().ocrKey.trim();
+// OCR.space works out of the box (free), so a key is only required for Vision.
+export const ocrReady = (): boolean => {
+  const { ocrProvider, ocrKey } = usePrefs.getState();
+  return ocrProvider === 'ocrspace' || !!ocrKey.trim();
+};
+// Back-compat alias.
+export const hasOcrKey = ocrReady;
 
 const base64Of = (dataUrl: string): string => (dataUrl.includes(',') ? dataUrl.split(',')[1] : dataUrl);
 
-// OCR a bill via Google Cloud Vision (DOCUMENT_TEXT_DETECTION). Images go to
-// images:annotate; PDFs go to files:annotate (inline, synchronous, first pages).
-// Returns the extracted text, newline-separated in reading order.
+// Route to the configured provider.
 export async function ocrFile(dataUrl: string, mime: string): Promise<string> {
+  return usePrefs.getState().ocrProvider === 'vision' ? ocrVision(dataUrl, mime) : ocrSpace(dataUrl, mime);
+}
+
+// OCR.space — free (25k/month), works in web and the APK, reads photos & PDFs.
+// isTable=true keeps column alignment so rows map cleanly. Falls back to the
+// shared demo key when the admin hasn't set their own.
+async function ocrSpace(dataUrl: string, mime: string): Promise<string> {
+  const key = usePrefs.getState().ocrKey.trim() || 'helloworld';
+  const form = new URLSearchParams();
+  form.set('base64Image', dataUrl);
+  form.set('isTable', 'true');
+  form.set('scale', 'true');
+  form.set('language', 'eng');
+  if (mime === 'application/pdf') form.set('filetype', 'PDF');
+  const res = await fetch('https://api.ocr.space/parse/image', {
+    method: 'POST',
+    headers: { apikey: key, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: form.toString(),
+  });
+  const data = await res.json();
+  if (data.IsErroredOnProcessing) {
+    const m = Array.isArray(data.ErrorMessage) ? data.ErrorMessage.join(' ') : (data.ErrorMessage || 'OCR failed');
+    throw new Error(m);
+  }
+  return (data.ParsedResults || []).map((r: any) => r.ParsedText || '').join('\n').trim();
+}
+
+// OCR via Google Cloud Vision (DOCUMENT_TEXT_DETECTION). Images → images:annotate;
+// PDFs → files:annotate (inline, synchronous, first pages).
+async function ocrVision(dataUrl: string, mime: string): Promise<string> {
   const key = usePrefs.getState().ocrKey.trim();
   if (!key) throw new Error('Add your Google Vision API key in Settings → Bill Scanning first.');
   const content = base64Of(dataUrl);

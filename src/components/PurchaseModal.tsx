@@ -5,7 +5,7 @@ import { Modal, Field } from './ui';
 import { inr, today } from '../lib/format';
 import { compressImage } from '../lib/image';
 import { parseTable, guessMapping, toItems, itemsTotal, type StdField } from '../lib/purchase';
-import { ocrFile, fileToDataUrl, hasOcrKey } from '../lib/ocr';
+import { ocrFile, fileToDataUrl, ocrReady } from '../lib/ocr';
 import type { Project, PurchaseItem } from '../types';
 
 const FIELDS: { key: StdField; label: string }[] = [
@@ -73,15 +73,17 @@ export const PurchaseModal: React.FC<{ open: boolean; project: Project; onClose:
   const [scanning, setScanning] = useState(false);
   const onScan = async (file: File | null) => {
     if (!file) return;
-    if (!hasOcrKey()) { alert('Add your Google Vision API key in Settings → Bill Scanning first.'); return; }
+    if (!ocrReady()) { alert('Set up bill scanning in Settings → Bill Scanning first.'); return; }
     setScanning(true);
     try {
-      const dataUrl = await fileToDataUrl(file);
-      const text = await ocrFile(dataUrl, file.type);
+      const isImg = file.type.startsWith('image/');
+      // Compress photos to stay under the free-tier size limit and speed up OCR.
+      const dataUrl = isImg ? await compressImage(file, 900 * 1024, 1600) : await fileToDataUrl(file);
+      const text = await ocrFile(dataUrl, isImg ? 'image/jpeg' : file.type);
       if (!text.trim()) { alert('No text could be read from that bill. Try a clearer photo.'); return; }
       setShowPaste(true);
       reguess(text);
-      if (file.type.startsWith('image/')) { try { setBill(await compressImage(file, 120 * 1024, 900)); } catch { /* keep going */ } }
+      if (isImg) { try { setBill(await compressImage(file, 120 * 1024, 900)); } catch { /* keep going */ } }
     } catch (e: any) {
       alert('Scan failed: ' + (e?.message || 'OCR error'));
     } finally { setScanning(false); }

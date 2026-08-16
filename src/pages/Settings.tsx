@@ -10,7 +10,7 @@ import { cloudEnabled, cloudState, pushAll, pullAll } from '../lib/cloud';
 
 export const Settings: React.FC = () => {
   const { settings, employees, attendance, ledger, resetAll } = useData();
-  const { ocrKey, setOcrKey } = usePrefs();
+  const { ocrKey, setOcrKey, ocrProvider, setOcrProvider } = usePrefs();
   const [form, setForm] = useState(settings);
   const [saved, setSaved] = useState(false);
   const [cloudMsg, setCloudMsg] = useState('');
@@ -152,14 +152,34 @@ export const Settings: React.FC = () => {
 
       <Card className="p-5 space-y-3">
         <h3 className="font-bold text-slate-700 flex items-center gap-2"><ScanText size={18} className="text-brand-500" /> Bill Scanning (OCR)</h3>
-        <p className="text-sm text-slate-500">Paste a <b>Google Cloud Vision</b> API key to auto-read purchase bills (photos or PDFs) on the Add Purchase screen.</p>
-        <Field label="Google Vision API Key" hint="Stored on THIS device only — not synced. Restrict the key to the Vision API in Google Cloud.">
-          <input className="input" type="password" value={ocrKey} onChange={(e) => setOcrKey(e.target.value)} placeholder="AIza…" autoComplete="off" />
+        <p className="text-sm text-slate-500">Auto-read purchase bills (photos or PDFs) on the Add Purchase screen.</p>
+        <Field label="Service">
+          <div className="grid grid-cols-2 gap-2">
+            <button onClick={() => setOcrProvider('ocrspace')} className={`btn ${ocrProvider === 'ocrspace' ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600'}`}>OCR.space (free)</button>
+            <button onClick={() => setOcrProvider('vision')} className={`btn ${ocrProvider === 'vision' ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600'}`}>Google Vision</button>
+          </div>
         </Field>
-        <div className="rounded-xl bg-sky-50 text-sky-700 p-3 text-xs flex gap-2">
-          <Info size={14} className="shrink-0 mt-0.5" />
-          <span>Get a key at console.cloud.google.com → enable the Cloud Vision API → Credentials → API key. OCR pre-fills the purchase table; always review the rows before saving.</span>
-        </div>
+        {ocrProvider === 'ocrspace' ? (
+          <>
+            <Field label="OCR.space API Key (optional)" hint="Works without a key using the free shared one. For reliability, get your own free key — stored on THIS device only.">
+              <input className="input" type="password" value={ocrKey} onChange={(e) => setOcrKey(e.target.value)} placeholder="leave blank to use the free key" autoComplete="off" />
+            </Field>
+            <div className="rounded-xl bg-emerald-50 text-emerald-700 p-3 text-xs flex gap-2">
+              <Info size={14} className="shrink-0 mt-0.5" />
+              <span>Free (25,000 scans/month), works in the app and the web. Get a free key at <b>ocr.space/ocrapi</b>. OCR pre-fills the purchase table — always review the rows before saving.</span>
+            </div>
+          </>
+        ) : (
+          <>
+            <Field label="Google Vision API Key" hint="Stored on THIS device only. Restrict the key to the Vision API in Google Cloud.">
+              <input className="input" type="password" value={ocrKey} onChange={(e) => setOcrKey(e.target.value)} placeholder="AIza…" autoComplete="off" />
+            </Field>
+            <div className="rounded-xl bg-sky-50 text-sky-700 p-3 text-xs flex gap-2">
+              <Info size={14} className="shrink-0 mt-0.5" />
+              <span>Get a key at console.cloud.google.com → enable Cloud Vision API → Credentials → API key. Free 1,000/month, then paid.</span>
+            </div>
+          </>
+        )}
       </Card>
 
       <Card className="p-5 space-y-3">
