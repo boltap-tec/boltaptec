@@ -2,10 +2,11 @@ import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Users, CalendarClock, Wallet, HandCoins,
-  BookOpen, Settings as SettingsIcon, LogOut, Bell, Zap, Home, History,
+  BookOpen, Settings as SettingsIcon, LogOut, Bell, Zap, Home, History, RefreshCw,
 } from 'lucide-react';
 import { useAuth } from '../store/useAuth';
 import { useData } from '../store/useData';
+import { cloudEnabled, pullAll } from '../lib/cloud';
 import { Avatar } from './ui';
 
 const adminNav = [
@@ -33,6 +34,22 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   const items = isAdmin ? adminNav : workerNav;
   const mobileItems = isAdmin ? items.slice(0, 5) : items;
 
+  const [refreshing, setRefreshing] = React.useState(false);
+  const [toast, setToast] = React.useState('');
+  const flash = (m: string) => { setToast(m); setTimeout(() => setToast(''), 2500); };
+
+  // Pull the latest data from the cloud on demand (e.g. to see a worker's just-closed attendance).
+  const refresh = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      if (cloudEnabled) { await pullAll(); flash('✓ Data refreshed from cloud'); }
+      else flash('Local mode — data is already up to date on this device');
+    } catch (e: any) {
+      flash('⚠️ ' + (e?.message || 'Refresh failed — check your connection'));
+    } finally { setRefreshing(false); }
+  };
+
   const doLogout = () => { logout(); navigate('/login'); };
 
   return (
@@ -47,6 +64,10 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
             <div className="font-extrabold text-slate-800 leading-tight">BoltAp</div>
             <div className="text-[10px] text-slate-400 font-medium">Workforce Manager</div>
           </div>
+          <button onClick={refresh} disabled={refreshing} title="Refresh data"
+            className="ml-auto p-2 rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-50">
+            <RefreshCw size={17} className={refreshing ? 'animate-spin' : ''} />
+          </button>
         </div>
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
           {items.map((n) => (
@@ -90,6 +111,9 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
             <span className="font-extrabold text-slate-800">BoltAp</span>
           </div>
           <div className="flex items-center gap-1">
+            <button onClick={refresh} disabled={refreshing} className="p-2 text-slate-500 disabled:opacity-50" title="Refresh data">
+              <RefreshCw size={18} className={refreshing ? 'animate-spin' : ''} />
+            </button>
             <button className="relative p-2 text-slate-500">
               <Bell size={19} />
               {isAdmin && pendingReqs > 0 && (
@@ -101,6 +125,12 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
             <button onClick={doLogout} className="p-2 text-slate-500"><LogOut size={18} /></button>
           </div>
         </header>
+
+        {toast && (
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 rounded-xl bg-slate-800 text-white text-sm font-semibold px-4 py-2.5 shadow-lg">
+            {toast}
+          </div>
+        )}
 
         <main className="flex-1 p-4 sm:p-6 pb-24 md:pb-6 max-w-6xl w-full mx-auto">{children}</main>
 
