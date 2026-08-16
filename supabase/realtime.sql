@@ -8,7 +8,8 @@ begin
   foreach t in array array[
     'employees','attendance','ledger','salary_details',
     'salary_postings','advance_requests','settings',
-    'projects','expenditure_categories','project_expenditure','project_payments'
+    'projects','expenditure_categories','project_expenditure','project_payments',
+    'expenditure_requests'
   ]
   loop
     begin

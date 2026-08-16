@@ -2,19 +2,63 @@ import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Users, CalendarClock, Wallet, HandCoins,
-  BookOpen, Settings as SettingsIcon, LogOut, Bell, Zap, Home, History, RefreshCw, Briefcase,
+  BookOpen, Settings as SettingsIcon, LogOut, Bell, Zap, Home, History, RefreshCw, Briefcase, Receipt, ClipboardList,
 } from 'lucide-react';
 import { useAuth } from '../store/useAuth';
 import { useData } from '../store/useData';
 import { cloudEnabled, pullAll } from '../lib/cloud';
 import { beep } from '../lib/alarm';
+import { today } from '../lib/format';
 import { Avatar } from './ui';
 
+// "Today's Work" — admin picks the active project for the day; it becomes the
+// default project for attendance and worker expense requests.
+const TodayPlan: React.FC = () => {
+  const [open, setOpen] = React.useState(false);
+  const projects = useData((s) => s.projects);
+  const settings = useData((s) => s.settings);
+  const setTodayPlan = useData((s) => s.setTodayPlan);
+  const running = projects.filter((p) => p.status === 'Running');
+  const activeId = settings.today_plan_date === today() ? settings.today_project_id : null;
+  const activeName = activeId ? settings.today_project_name : null;
+  return (
+    <div className="relative">
+      <button onClick={() => setOpen((o) => !o)}
+        className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold max-w-[160px] ${activeName ? 'bg-brand-50 text-brand-700' : 'text-slate-500 hover:bg-slate-100'}`}
+        title="Today's work (default project)">
+        <ClipboardList size={15} className="shrink-0" />
+        <span className="truncate">{activeName || "Today's work"}</span>
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 mt-1 w-64 bg-white rounded-xl shadow-lg border border-slate-100 z-50 overflow-hidden">
+            <div className="px-3 py-2 text-xs font-bold text-slate-400 border-b border-slate-50">Today's work — pick the project</div>
+            <div className="max-h-64 overflow-y-auto">
+              {running.length === 0 ? (
+                <div className="px-3 py-3 text-sm text-slate-400">No running projects.</div>
+              ) : running.map((p) => (
+                <button key={p.project_id} onClick={() => { setTodayPlan(p.project_id); setOpen(false); }}
+                  className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-50 ${p.project_id === activeId ? 'text-brand-600 font-semibold' : 'text-slate-700'}`}>
+                  {p.name}{p.project_id === activeId ? ' ✓' : ''}
+                </button>
+              ))}
+            </div>
+            {activeId && (
+              <button onClick={() => { setTodayPlan(null); setOpen(false); }} className="w-full text-left px-3 py-2 text-sm text-rose-500 border-t border-slate-50 hover:bg-rose-50">Clear today's work</button>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
 // Admin bell: shows pending approvals and links straight to them.
-const NotificationBell: React.FC<{ attn: number; adv: number }> = ({ attn, adv }) => {
+const NotificationBell: React.FC<{ attn: number; adv: number; exp: number }> = ({ attn, adv, exp }) => {
   const [open, setOpen] = React.useState(false);
   const navigate = useNavigate();
-  const total = attn + adv;
+  const total = attn + adv + exp;
   const go = (to: string) => { setOpen(false); navigate(to); };
   return (
     <div className="relative">
@@ -45,6 +89,12 @@ const NotificationBell: React.FC<{ attn: number; adv: number }> = ({ attn, adv }
                     <span className="flex-1 text-slate-700"><b>{adv}</b> advance request{adv > 1 ? 's' : ''}</span>
                   </button>
                 )}
+                {exp > 0 && (
+                  <button onClick={() => go('/project-expense')} className="w-full flex items-center gap-2 px-3 py-2.5 hover:bg-slate-50 text-left text-sm">
+                    <span className="h-8 w-8 rounded-lg bg-emerald-100 text-emerald-600 grid place-items-center"><Receipt size={16} /></span>
+                    <span className="flex-1 text-slate-700"><b>{exp}</b> project expense{exp > 1 ? 's' : ''}</span>
+                  </button>
+                )}
               </>
             )}
           </div>
@@ -59,6 +109,7 @@ const adminNav = [
   { to: '/employees', label: 'Employees', icon: Users },
   { to: '/attendance', label: 'Attendance', icon: CalendarClock },
   { to: '/projects', label: 'Projects', icon: Briefcase },
+  { to: '/project-expense', label: 'Project Expense', icon: Receipt },
   { to: '/salary', label: 'Salary', icon: Wallet },
   { to: '/advances', label: 'Advances', icon: HandCoins },
   { to: '/ledger', label: 'Ledger', icon: BookOpen },
@@ -67,6 +118,7 @@ const adminNav = [
 
 const workerNav = [
   { to: '/me', label: 'My Money', icon: Home },
+  { to: '/project-expense', label: 'Project Expense', icon: Receipt },
   { to: '/advances', label: 'Advances', icon: HandCoins },
   { to: '/my-history', label: 'History', icon: History },
 ];
@@ -76,8 +128,9 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   const navigate = useNavigate();
   const pendingReqs = useData((s) => s.requests.filter((r) => r.status === 'Pending').length);
   const pendingAtt = useData((s) => s.attendance.filter((a) => a.status === 'pending').length);
+  const pendingExp = useData((s) => s.expenditureRequests.filter((r) => r.status === 'Pending').length);
   const isAdmin = session?.role === 'admin';
-  const totalAlerts = isAdmin ? pendingReqs + pendingAtt : 0;
+  const totalAlerts = isAdmin ? pendingReqs + pendingAtt + pendingExp : 0;
 
   // Sound an alarm when a new approval request arrives (not on first load).
   const prevAlerts = React.useRef(0);
@@ -122,13 +175,18 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
             <div className="text-[10px] text-slate-400 font-medium">Workforce Manager</div>
           </div>
           <div className="ml-auto flex items-center gap-0.5">
-            {isAdmin && <NotificationBell attn={pendingAtt} adv={pendingReqs} />}
+            {isAdmin && <NotificationBell attn={pendingAtt} adv={pendingReqs} exp={pendingExp} />}
             <button onClick={refresh} disabled={refreshing} title="Refresh data"
               className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-50">
               <RefreshCw size={17} className={refreshing ? 'animate-spin' : ''} />
             </button>
           </div>
         </div>
+        {isAdmin && (
+          <div className="px-4 py-2 border-b border-slate-100">
+            <TodayPlan />
+          </div>
+        )}
         <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
           {items.map((n) => (
             <NavLink key={n.to} to={n.to} end={n.to === '/'}
@@ -171,10 +229,11 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
             <span className="font-extrabold text-slate-800">BoltAp</span>
           </div>
           <div className="flex items-center gap-1">
+            {isAdmin && <TodayPlan />}
             <button onClick={refresh} disabled={refreshing} className="p-2 text-slate-500 disabled:opacity-50" title="Refresh data">
               <RefreshCw size={18} className={refreshing ? 'animate-spin' : ''} />
             </button>
-            {isAdmin && <NotificationBell attn={pendingAtt} adv={pendingReqs} />}
+            {isAdmin && <NotificationBell attn={pendingAtt} adv={pendingReqs} exp={pendingExp} />}
             <button onClick={doLogout} className="p-2 text-slate-500"><LogOut size={18} /></button>
           </div>
         </header>

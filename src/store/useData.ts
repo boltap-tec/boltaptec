@@ -3,6 +3,7 @@ import { persist } from 'zustand/middleware';
 import type {
   Employee, Attendance, LedgerEntry, SalaryDetail, SalaryPosting,
   AdvanceRequest, Settings, Project, ExpenditureCategory, ProjectExpenditure, ProjectPayment,
+  ExpenditureRequest,
 } from '../types';
 import {
   seedEmployees, seedAttendance, seedLedger, seedSalaryDetails,
@@ -23,6 +24,7 @@ interface DataState {
   expenditureCategories: ExpenditureCategory[];
   projectExpenditure: ProjectExpenditure[];
   projectPayments: ProjectPayment[];
+  expenditureRequests: ExpenditureRequest[];
   settings: Settings;
 
   // projects
@@ -34,6 +36,13 @@ interface DataState {
   addPayment: (p: Omit<ProjectPayment, 'id'>) => void;
   deletePayment: (id: string) => void;
   addCategory: (name: string) => void;
+  setTodayPlan: (projectId: string | null) => void;
+
+  // worker project-expense requests
+  createExpenditureRequest: (r: Omit<ExpenditureRequest, 'id' | 'status' | 'created_at' | 'decided_at' | 'decided_by' | 'admin_note' | 'paid_method'>) => void;
+  updateExpenditureRequest: (id: string, patch: Partial<Pick<ExpenditureRequest, 'amount' | 'category_id' | 'category_name' | 'project_id' | 'project_name' | 'note'>>) => void;
+  approveExpenditureRequest: (id: string, decidedBy: string, paidMethod: 'Cash' | 'UPI', note?: string) => void;
+  rejectExpenditureRequest: (id: string, decidedBy: string, note?: string) => void;
 
   // employees
   addEmployee: (e: Partial<Employee> & { name: string; daily_wage: number }) => Employee;
@@ -97,6 +106,7 @@ export const useData = create<DataState>()(
       expenditureCategories: [],
       projectExpenditure: [],
       projectPayments: [],
+      expenditureRequests: [],
       settings: defaultSettings(),
 
       addProject: (p) => {
@@ -157,6 +167,68 @@ export const useData = create<DataState>()(
           ],
         });
       },
+
+      // "Today's Work" — the active project for the day (used as the default when
+      // marking attendance or requesting a project expense).
+      setTodayPlan: (projectId) => {
+        const p = projectId ? get().projects.find((x) => x.project_id === projectId) : null;
+        set({
+          settings: {
+            ...get().settings,
+            today_project_id: p ? p.project_id : null,
+            today_project_name: p ? p.name : null,
+            today_plan_date: p ? today() : null,
+          },
+        });
+      },
+
+      createExpenditureRequest: (r) =>
+        set({
+          expenditureRequests: [
+            {
+              ...r, id: uid('exr_'), status: 'Pending',
+              created_at: new Date().toISOString(),
+              decided_at: null, decided_by: null, admin_note: null, paid_method: null,
+            },
+            ...get().expenditureRequests,
+          ],
+        }),
+
+      updateExpenditureRequest: (id, patch) =>
+        set({
+          expenditureRequests: get().expenditureRequests.map((r) =>
+            r.id === id && r.status === 'Pending' ? { ...r, ...patch } : r,
+          ),
+        }),
+
+      // Approve → record it as a project expenditure (NOT an employee advance),
+      // mark how the worker was reimbursed, and close the request.
+      approveExpenditureRequest: (id, decidedBy, paidMethod, note) => {
+        const req = get().expenditureRequests.find((r) => r.id === id);
+        if (!req || req.status !== 'Pending') return;
+        get().addExpenditure({
+          project_id: req.project_id, project_name: req.project_name, date: today(),
+          category_id: req.category_id, category_name: req.category_name,
+          description: req.note || `${req.employee_name} expense`, amount: req.amount,
+          remark: `Reimbursed to ${req.employee_name} (${paidMethod})`, images: null, source: 'worker_request',
+        });
+        set({
+          expenditureRequests: get().expenditureRequests.map((r) =>
+            r.id === id
+              ? { ...r, status: 'Approved', decided_at: new Date().toISOString(), decided_by: decidedBy, admin_note: note ?? null, paid_method: paidMethod }
+              : r,
+          ),
+        });
+      },
+
+      rejectExpenditureRequest: (id, decidedBy, note) =>
+        set({
+          expenditureRequests: get().expenditureRequests.map((r) =>
+            r.id === id && r.status === 'Pending'
+              ? { ...r, status: 'Rejected', decided_at: new Date().toISOString(), decided_by: decidedBy, admin_note: note ?? null }
+              : r,
+          ),
+        }),
 
       addEmployee: (e) => {
         const emps = get().employees;
@@ -503,6 +575,7 @@ export const useData = create<DataState>()(
           expenditureCategories: seedExpenditureCategories(),
           projectExpenditure: seedProjectExpenditure(),
           projectPayments: seedProjectPayments(),
+          expenditureRequests: [],
           settings: defaultSettings(),
         }),
     }),
@@ -519,6 +592,7 @@ export const useData = create<DataState>()(
           state.projectExpenditure = seedProjectExpenditure();
           state.projectPayments = state.projectPayments || seedProjectPayments();
         }
+        if (!state.expenditureRequests) state.expenditureRequests = [];
       },
     },
   ),

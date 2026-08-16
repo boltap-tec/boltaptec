@@ -186,6 +186,24 @@ create table if not exists project_payments (
 );
 create index if not exists project_pay_pid on project_payments(project_id);
 
+create table if not exists expenditure_requests (
+  id            text primary key,
+  employee_id   text,
+  employee_name text,
+  project_id    text,
+  project_name  text,
+  category_id   text,
+  category_name text,
+  amount        numeric not null default 0,
+  note          text,
+  status        text not null default 'Pending',  -- Pending | Approved | Rejected
+  created_at    timestamptz default now(),
+  decided_at    timestamptz,
+  decided_by    text,
+  admin_note    text,
+  paid_method   text                                -- Cash | UPI
+);
+
 -- Grant the app's publishable/anon key full access (DEMO — see policies.sql).
 -- ⚠️ tighten with RLS + real auth before production.
 do $$
@@ -194,7 +212,8 @@ begin
   foreach t in array array[
     'employees','attendance','ledger','salary_details',
     'salary_postings','advance_requests','settings',
-    'projects','expenditure_categories','project_expenditure','project_payments'
+    'projects','expenditure_categories','project_expenditure','project_payments',
+    'expenditure_requests'
   ]
   loop
     execute format('alter table public.%I disable row level security;', t);

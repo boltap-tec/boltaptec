@@ -89,7 +89,7 @@ export const Advances: React.FC = () => {
         </div>
         <div className="flex gap-2">
           <button onClick={() => { setEmpId(session?.employee_id || ''); setAmount(''); setReason(''); setMethod('UPI'); setReqModal(true); }} className="btn-ghost">
-            <Send size={16} /> <span className="hidden sm:inline">Request</span>
+            <Send size={16} /> <span className="hidden sm:inline">Advance Request</span>
           </button>
           {isAdmin && (
             <button onClick={() => { setEmpId(''); setAmount(''); setReason(''); setMethod('Cash'); setGiveDate(today()); setDirectModal(true); }} className="btn-primary">

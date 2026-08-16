@@ -14,6 +14,7 @@ const TABLES = [
   { slice: 'expenditureCategories', table: 'expenditure_categories', key: 'category_id' },
   { slice: 'projectExpenditure', table: 'project_expenditure', key: 'id' },
   { slice: 'projectPayments', table: 'project_payments', key: 'id' },
+  { slice: 'expenditureRequests', table: 'expenditure_requests', key: 'id' },
 ] as const;
 
 export const cloudEnabled = isSupabaseConfigured;
@@ -183,7 +184,8 @@ function startRealtime() {
   supabase!.removeAllChannels(); // avoid duplicate channel on re-init
   const ch = supabase!.channel('boltap-live');
   ['employees', 'attendance', 'ledger', 'salary_details', 'salary_postings', 'advance_requests',
-    'projects', 'expenditure_categories', 'project_expenditure', 'project_payments', 'settings']
+    'projects', 'expenditure_categories', 'project_expenditure', 'project_payments',
+    'expenditure_requests', 'settings']
     .forEach((table) => {
       ch.on('postgres_changes' as any, { event: '*', schema: 'public', table }, (p: any) => {
         try { applyRealtime(table, p.eventType, p.new, p.old); }

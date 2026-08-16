@@ -11,6 +11,7 @@ import { EmployeeDetail } from './pages/EmployeeDetail';
 import { Attendance } from './pages/Attendance';
 import { Projects } from './pages/Projects';
 import { ProjectDetail } from './pages/ProjectDetail';
+import { ProjectExpense } from './pages/ProjectExpense';
 import { Salary } from './pages/Salary';
 import { Advances } from './pages/Advances';
 import { Ledger } from './pages/Ledger';
@@ -60,6 +61,7 @@ export default function App() {
         <Route path="/attendance" element={<Protected adminOnly><Attendance /></Protected>} />
         <Route path="/projects" element={<Protected adminOnly><Projects /></Protected>} />
         <Route path="/projects/:id" element={<Protected adminOnly><ProjectDetail /></Protected>} />
+        <Route path="/project-expense" element={<Protected><ProjectExpense /></Protected>} />
         <Route path="/salary" element={<Protected adminOnly><Salary /></Protected>} />
         <Route path="/advances" element={<Protected><Advances /></Protected>} />
         <Route path="/me" element={<Protected><EmployeeHome /></Protected>} />
