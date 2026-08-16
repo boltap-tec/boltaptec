@@ -55,7 +55,10 @@ export const Attendance: React.FC = () => {
   const [eAllocs, setEAllocs] = useState<{ project_id: string; hours: number }[]>([]);
 
   const openEdit = (a: AttRow) => {
-    setEditRow(a); setEDate(a.date); setEIn(to24h(a.time_in)); setEOut(to24h(a.time_out)); setELunch(a.lunch_hours ?? 0);
+    // Approving an employee punch behaves like Mark Attendance: lunch defaults to
+    // the Settings value when the punch didn't carry one, project defaults to Today's Work.
+    setEditRow(a); setEDate(a.date); setEIn(to24h(a.time_in)); setEOut(to24h(a.time_out));
+    setELunch(a.lunch_hours != null ? a.lunch_hours : (settings.lunch_hours ?? 0));
     const existing = (a.project_allocations || []).map((x) => ({ project_id: x.project_id, hours: x.hours }));
     setEAllocs(existing.length ? existing : (planProject ? [{ project_id: planProject, hours: a.total_hours || 0 }] : []));
   };
