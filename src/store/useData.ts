@@ -2,11 +2,12 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type {
   Employee, Attendance, LedgerEntry, SalaryDetail, SalaryPosting,
-  AdvanceRequest, Settings,
+  AdvanceRequest, Settings, Project, ExpenditureCategory, ProjectExpenditure, ProjectPayment,
 } from '../types';
 import {
   seedEmployees, seedAttendance, seedLedger, seedSalaryDetails,
   seedPostings, seedAdvanceRequests, defaultSettings,
+  seedProjects, seedExpenditureCategories, seedProjectExpenditure, seedProjectPayments,
 } from '../lib/seed';
 import { advancePending, hourlyRate, computeAttendanceSalary, hoursBetween } from '../lib/calc';
 import { uid, today, fmtDate } from '../lib/format';
@@ -18,7 +19,21 @@ interface DataState {
   salaryDetails: SalaryDetail[];
   postings: SalaryPosting[];
   requests: AdvanceRequest[];
+  projects: Project[];
+  expenditureCategories: ExpenditureCategory[];
+  projectExpenditure: ProjectExpenditure[];
+  projectPayments: ProjectPayment[];
   settings: Settings;
+
+  // projects
+  addProject: (p: Partial<Project> & { name: string }) => Project;
+  updateProject: (id: string, patch: Partial<Project>) => void;
+  deleteProject: (id: string) => void;
+  addExpenditure: (e: Omit<ProjectExpenditure, 'id'>) => void;
+  deleteExpenditure: (id: string) => void;
+  addPayment: (p: Omit<ProjectPayment, 'id'>) => void;
+  deletePayment: (id: string) => void;
+  addCategory: (name: string) => void;
 
   // employees
   addEmployee: (e: Partial<Employee> & { name: string; daily_wage: number }) => Employee;
@@ -78,7 +93,70 @@ export const useData = create<DataState>()(
       salaryDetails: [],
       postings: [],
       requests: [],
+      projects: [],
+      expenditureCategories: [],
+      projectExpenditure: [],
+      projectPayments: [],
       settings: defaultSettings(),
+
+      addProject: (p) => {
+        const n = get().projects.length + 1;
+        const clean = p.name.trim().replace(/\s+/g, ' ');
+        const project: Project = {
+          project_id: p.project_id || `${clean.replace(/\s+/g, '_')}_P${n}`,
+          name: clean,
+          date: p.date || today(),
+          owner_name: p.owner_name ?? null,
+          address: p.address ?? null,
+          phone: p.phone ?? null,
+          quote_based_on: p.quote_based_on || 'Other',
+          length: p.length ?? null,
+          breadth: p.breadth ?? null,
+          rate_per_sqft: p.rate_per_sqft ?? null,
+          total_sqft: p.total_sqft ?? 0,
+          approximate_amount: p.approximate_amount ?? 0,
+          amount_quoted: p.amount_quoted ?? 0,
+          discount: p.discount ?? null,
+          status: p.status || 'Running',
+          images: p.images ?? null,
+        };
+        set({ projects: [project, ...get().projects] });
+        return project;
+      },
+
+      updateProject: (id, patch) =>
+        set({ projects: get().projects.map((p) => (p.project_id === id ? { ...p, ...patch } : p)) }),
+
+      deleteProject: (id) =>
+        set({
+          projects: get().projects.filter((p) => p.project_id !== id),
+          projectExpenditure: get().projectExpenditure.filter((e) => e.project_id !== id),
+          projectPayments: get().projectPayments.filter((x) => x.project_id !== id),
+        }),
+
+      addExpenditure: (e) =>
+        set({ projectExpenditure: [{ ...e, id: uid('exp_') }, ...get().projectExpenditure] }),
+
+      deleteExpenditure: (id) =>
+        set({ projectExpenditure: get().projectExpenditure.filter((e) => e.id !== id) }),
+
+      addPayment: (p) =>
+        set({ projectPayments: [{ ...p, id: uid('pay_') }, ...get().projectPayments] }),
+
+      deletePayment: (id) =>
+        set({ projectPayments: get().projectPayments.filter((x) => x.id !== id) }),
+
+      addCategory: (name) => {
+        const clean = name.trim();
+        if (!clean) return;
+        const n = get().expenditureCategories.length + 1;
+        set({
+          expenditureCategories: [
+            ...get().expenditureCategories,
+            { category_id: `${clean.replace(/\s+/g, '_')}_C${n}`, name: clean, visible: true },
+          ],
+        });
+      },
 
       addEmployee: (e) => {
         const emps = get().employees;
@@ -420,15 +498,25 @@ export const useData = create<DataState>()(
           salaryDetails: seedSalaryDetails(),
           postings: seedPostings(),
           requests: seedAdvanceRequests(),
+          projects: seedProjects(),
+          expenditureCategories: seedExpenditureCategories(),
+          projectExpenditure: seedProjectExpenditure(),
+          projectPayments: seedProjectPayments(),
           settings: defaultSettings(),
         }),
     }),
     {
       name: 'boltap-data-v2',
       onRehydrateStorage: () => (state) => {
-        // First run: hydrate from the bundled Excel export.
-        if (state && state.employees.length === 0) {
-          state.resetAll();
+        if (!state) return;
+        // First run: hydrate everything from the bundled Excel export.
+        if (state.employees.length === 0) { state.resetAll(); return; }
+        // Existing install without the projects module yet: seed just those slices.
+        if (!state.projects || state.projects.length === 0) {
+          state.projects = seedProjects();
+          state.expenditureCategories = seedExpenditureCategories();
+          state.projectExpenditure = seedProjectExpenditure();
+          state.projectPayments = state.projectPayments || seedProjectPayments();
         }
       },
     },

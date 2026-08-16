@@ -51,6 +51,16 @@ export interface Attendance {
   open_lng?: number | null;
   close_lat?: number | null;  // location captured when the worker closed attendance
   close_lng?: number | null;
+  // which project(s) this shift's hours were worked on (up to 2). Feeds the
+  // project's labour expenditure. Set by admin while marking/approving.
+  project_allocations?: ProjectAllocation[] | null;
+}
+
+export interface ProjectAllocation {
+  project_id: string;
+  project_name: string;
+  hours: number;
+  amount: number;   // hours × hourly_rate for this shift
 }
 
 export type LedgerCategory = 'Advance_Payment' | 'Advance_Recovery' | 'Salary';
@@ -120,6 +130,58 @@ export interface Session {
   role: Role;
   employee_id: string | null; // set when role === 'employee'
   name: string;
+}
+
+export type ProjectStatus = 'Running' | 'Completed' | 'Cancelled';
+export type QuoteBasis = 'Other' | 'Length_Breadth_Based';
+
+export interface Project {
+  project_id: string;
+  name: string;
+  date: string;
+  owner_name: string | null;
+  address: string | null;
+  phone: string | null;
+  quote_based_on: QuoteBasis;
+  length: number | null;
+  breadth: number | null;
+  rate_per_sqft: number | null;
+  total_sqft: number;          // length × breadth
+  approximate_amount: number;  // total_sqft × rate_per_sqft
+  amount_quoted: number;       // the price quoted to the customer
+  discount: number | null;
+  status: ProjectStatus;
+  images?: string[] | null;
+}
+
+export interface ExpenditureCategory {
+  category_id: string;
+  name: string;
+  visible: boolean;            // shown in the manual expenditure picker (Labour is hidden/auto)
+}
+
+export interface ProjectExpenditure {
+  id: string;
+  project_id: string;
+  project_name: string;
+  date: string;
+  category_id: string;
+  category_name: string;
+  description: string | null;
+  amount: number;
+  remark?: string | null;
+  images?: string[] | null;    // bill photos
+  source?: 'admin' | 'worker_request';
+}
+
+export interface ProjectPayment {
+  id: string;
+  project_id: string;
+  project_name: string;
+  date: string;
+  amount: number;
+  method?: 'Cash' | 'UPI' | 'Bank' | null;
+  remark?: string | null;
 }
 
 export interface Settings {

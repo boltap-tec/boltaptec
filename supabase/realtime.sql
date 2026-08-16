@@ -7,7 +7,8 @@ declare t text;
 begin
   foreach t in array array[
     'employees','attendance','ledger','salary_details',
-    'salary_postings','advance_requests','settings'
+    'salary_postings','advance_requests','settings',
+    'projects','expenditure_categories','project_expenditure','project_payments'
   ]
   loop
     begin

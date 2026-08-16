@@ -3,9 +3,12 @@ import rawAttendance from '../data/attendance.json';
 import rawLedger from '../data/ledger.json';
 import rawSalaryDetails from '../data/salary_details.json';
 import rawPostings from '../data/salary_postings.json';
+import rawProjects from '../data/projects.json';
+import rawCategories from '../data/expenditure_categories.json';
+import rawProjectExp from '../data/project_expenditure.json';
 import type {
   Employee, Attendance, LedgerEntry, SalaryDetail, SalaryPosting,
-  AdvanceRequest, Settings,
+  AdvanceRequest, Settings, Project, ExpenditureCategory, ProjectExpenditure, ProjectPayment,
 } from '../types';
 import { hourlyRate } from './calc';
 import { uid } from './format';
@@ -131,6 +134,11 @@ export const seedAdvanceRequests = (): AdvanceRequest[] => [
     admin_note: null,
   },
 ];
+
+export const seedProjects = (): Project[] => (rawProjects as any[]).map((p) => ({ ...p }));
+export const seedExpenditureCategories = (): ExpenditureCategory[] => (rawCategories as any[]).map((c) => ({ ...c }));
+export const seedProjectExpenditure = (): ProjectExpenditure[] => (rawProjectExp as any[]).map((e) => ({ ...e }));
+export const seedProjectPayments = (): ProjectPayment[] => [];
 
 export const defaultSettings = (): Settings => ({
   business_name: 'BoltAp Workforce',

@@ -10,6 +10,10 @@ const TABLES = [
   { slice: 'salaryDetails', table: 'salary_details', key: 'id' },
   { slice: 'postings', table: 'salary_postings', key: 'id' },
   { slice: 'requests', table: 'advance_requests', key: 'id' },
+  { slice: 'projects', table: 'projects', key: 'project_id' },
+  { slice: 'expenditureCategories', table: 'expenditure_categories', key: 'category_id' },
+  { slice: 'projectExpenditure', table: 'project_expenditure', key: 'id' },
+  { slice: 'projectPayments', table: 'project_payments', key: 'id' },
 ] as const;
 
 export const cloudEnabled = isSupabaseConfigured;
@@ -25,13 +29,17 @@ type AnyRow = Record<string, any>;
 
 async function fetchAll() {
   const out: Record<string, any[]> = {};
+  const present = new Set<string>();
   for (const t of TABLES) {
     const { data, error } = await supabase!.from(t.table).select('*');
-    if (error) throw error;
+    // A missing table (new slice, migration not run yet) is skipped rather than
+    // fatal — the rest of the app keeps syncing and local data is preserved.
+    if (error) { console.warn('[cloud] table not available yet:', t.table, error.message); continue; }
     out[t.slice] = data || [];
+    present.add(t.slice);
   }
   const { data: s } = await supabase!.from('settings').select('*').eq('id', 1).maybeSingle();
-  return { slices: out, settings: s as (Settings & { id?: number }) | null };
+  return { slices: out, settings: s as (Settings & { id?: number }) | null, present };
 }
 
 // Push the entire local state up (used to seed an empty cloud DB).
@@ -39,26 +47,30 @@ export async function pushAll() {
   const st: AnyRow = useData.getState();
   for (const t of TABLES) {
     const rows = st[t.slice] as AnyRow[];
-    if (rows.length) {
+    if (rows && rows.length) {
       const { error } = await supabase!.from(t.table).upsert(rows, { onConflict: t.key });
-      if (error) throw error;
+      if (error) console.warn('[cloud] pushAll skipped', t.table, error.message);
     }
   }
   await supabase!.from('settings').upsert({ id: 1, ...st.settings }, { onConflict: 'id' });
 }
 
-// Replace local state with what's in the cloud.
+// Merge cloud state into the local store. Skips tables that don't exist yet and
+// never overwrites a non-empty local slice with an empty cloud one (so freshly
+// seeded project data survives until it has been pushed up).
 export async function pullAll() {
-  const { slices, settings } = await fetchAll();
-  useData.setState({
-    employees: slices.employees as any,
-    attendance: slices.attendance as any,
-    ledger: slices.ledger as any,
-    salaryDetails: slices.salaryDetails as any,
-    postings: slices.postings as any,
-    requests: slices.requests as any,
-    ...(settings ? { settings: stripId(settings) } : {}),
-  });
+  const { slices, settings, present } = await fetchAll();
+  const st: AnyRow = useData.getState();
+  const patch: Record<string, any> = {};
+  for (const t of TABLES) {
+    if (!present.has(t.slice)) continue;
+    const cloudRows = (slices[t.slice] || []) as any[];
+    const localRows = (st[t.slice] || []) as any[];
+    if (cloudRows.length === 0 && localRows.length > 0) continue;
+    patch[t.slice] = cloudRows;
+  }
+  if (settings) patch.settings = stripId(settings);
+  useData.setState(patch);
 }
 
 const stripId = (s: any): Settings => {
@@ -90,19 +102,29 @@ let started = false; // guard: set up sync/realtime only once (StrictMode calls 
 
 async function flush() {
   const next = snapshot();
-  try {
-    for (const t of TABLES) {
-      const { changed, removed } = diff(prev.slices[t.slice], next.slices[t.slice], t.key);
-      if (changed.length) await supabase!.from(t.table).upsert(changed, { onConflict: t.key });
-      if (removed.length) await supabase!.from(t.table).delete().in(t.key, removed);
+  // Each table syncs independently so a not-yet-migrated table (e.g. projects)
+  // can't block the others from syncing.
+  for (const t of TABLES) {
+    try {
+      const { changed, removed } = diff(prev.slices[t.slice] || [], next.slices[t.slice] || [], t.key);
+      if (changed.length) {
+        const { error } = await supabase!.from(t.table).upsert(changed, { onConflict: t.key });
+        if (error) throw error;
+      }
+      if (removed.length) {
+        const { error } = await supabase!.from(t.table).delete().in(t.key, removed);
+        if (error) throw error;
+      }
+    } catch (e: any) {
+      console.warn('[cloud] sync skipped for', t.table, e?.message || e);
     }
+  }
+  try {
     if (JSON.stringify(prev.settings) !== JSON.stringify(next.settings)) {
       await supabase!.from('settings').upsert({ id: 1, ...next.settings }, { onConflict: 'id' });
     }
-    prev = next;
-  } catch (e) {
-    console.error('[cloud] sync failed (will retry on next change):', e);
-  }
+  } catch (e: any) { console.warn('[cloud] settings sync skipped', e?.message || e); }
+  prev = next;
 }
 
 function startSync() {
@@ -144,7 +166,8 @@ function applyRealtime(table: string, evt: string, row: AnyRow | null, oldRow: A
 function startRealtime() {
   supabase!.removeAllChannels(); // avoid duplicate channel on re-init
   const ch = supabase!.channel('boltap-live');
-  ['employees', 'attendance', 'ledger', 'salary_details', 'salary_postings', 'advance_requests', 'settings']
+  ['employees', 'attendance', 'ledger', 'salary_details', 'salary_postings', 'advance_requests',
+    'projects', 'expenditure_categories', 'project_expenditure', 'project_payments', 'settings']
     .forEach((table) => {
       ch.on('postgres_changes' as any, { event: '*', schema: 'public', table }, (p: any) => {
         try { applyRealtime(table, p.eventType, p.new, p.old); }

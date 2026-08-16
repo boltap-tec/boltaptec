@@ -2,7 +2,7 @@ import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   LayoutDashboard, Users, CalendarClock, Wallet, HandCoins,
-  BookOpen, Settings as SettingsIcon, LogOut, Bell, Zap, Home, History, RefreshCw,
+  BookOpen, Settings as SettingsIcon, LogOut, Bell, Zap, Home, History, RefreshCw, Briefcase,
 } from 'lucide-react';
 import { useAuth } from '../store/useAuth';
 import { useData } from '../store/useData';
@@ -58,6 +58,7 @@ const adminNav = [
   { to: '/', label: 'Dashboard', icon: LayoutDashboard },
   { to: '/employees', label: 'Employees', icon: Users },
   { to: '/attendance', label: 'Attendance', icon: CalendarClock },
+  { to: '/projects', label: 'Projects', icon: Briefcase },
   { to: '/salary', label: 'Salary', icon: Wallet },
   { to: '/advances', label: 'Advances', icon: HandCoins },
   { to: '/ledger', label: 'Ledger', icon: BookOpen },

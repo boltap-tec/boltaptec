@@ -1,0 +1,47 @@
+[
+ {
+  "category_id": "Labour_C1",
+  "name": "Labour",
+  "visible": false
+ },
+ {
+  "category_id": "Tea_C2",
+  "name": "Tea",
+  "visible": true
+ },
+ {
+  "category_id": "Material_C3",
+  "name": "Material",
+  "visible": true
+ },
+ {
+  "category_id": "Food_C4",
+  "name": "Food",
+  "visible": true
+ },
+ {
+  "category_id": "Vehicle_C5",
+  "name": "Vehicle",
+  "visible": true
+ },
+ {
+  "category_id": "Other_C6",
+  "name": "Other",
+  "visible": true
+ },
+ {
+  "category_id": "Build work labour_C7",
+  "name": "Build work labour",
+  "visible": true
+ },
+ {
+  "category_id": "Cement_C8",
+  "name": "Cement",
+  "visible": true
+ },
+ {
+  "category_id": "Cement accessories_C9",
+  "name": "BuilderAccessories",
+  "visible": true
+ }
+]

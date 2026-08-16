@@ -127,6 +127,59 @@ alter table attendance add column if not exists close_lng numeric;
 alter table settings   add column if not exists lunch_hours       numeric default 1;
 alter table settings   add column if not exists location_required boolean default false;
 
+-- ── Projects module ─────────────────────────────────────────────────────────
+create table if not exists projects (
+  project_id         text primary key,
+  name               text not null,
+  date               date,
+  owner_name         text,
+  address            text,
+  phone              text,
+  quote_based_on     text,                 -- Other | Length_Breadth_Based
+  length             numeric,
+  breadth            numeric,
+  rate_per_sqft      numeric,
+  total_sqft         numeric default 0,
+  approximate_amount numeric default 0,
+  amount_quoted      numeric default 0,
+  discount           numeric,
+  status             text default 'Running',  -- Running | Completed | Cancelled
+  images             jsonb,
+  created_at         timestamptz default now()
+);
+
+create table if not exists expenditure_categories (
+  category_id text primary key,
+  name        text not null,
+  visible     boolean default true
+);
+
+create table if not exists project_expenditure (
+  id            text primary key,
+  project_id    text references projects(project_id) on delete cascade,
+  project_name  text,
+  date          date,
+  category_id   text,
+  category_name text,
+  description   text,
+  amount        numeric not null default 0,
+  remark        text,
+  images        jsonb,
+  source        text default 'admin'      -- admin | worker_request
+);
+create index if not exists project_exp_pid on project_expenditure(project_id);
+
+create table if not exists project_payments (
+  id           text primary key,
+  project_id   text references projects(project_id) on delete cascade,
+  project_name text,
+  date         date,
+  amount       numeric not null default 0,
+  method       text,
+  remark       text
+);
+create index if not exists project_pay_pid on project_payments(project_id);
+
 -- Grant the app's publishable/anon key full access (DEMO — see policies.sql).
 -- ⚠️ tighten with RLS + real auth before production.
 do $$
@@ -134,7 +187,8 @@ declare t text;
 begin
   foreach t in array array[
     'employees','attendance','ledger','salary_details',
-    'salary_postings','advance_requests','settings'
+    'salary_postings','advance_requests','settings',
+    'projects','expenditure_categories','project_expenditure','project_payments'
   ]
   loop
     execute format('alter table public.%I disable row level security;', t);
