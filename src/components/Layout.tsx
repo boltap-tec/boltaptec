@@ -170,6 +170,8 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   const { session, logout } = useAuth();
   const navigate = useNavigate();
   const t = useT();
+  const brandName = useData((s) => s.settings.business_name?.trim() || 'BoltAp');
+  const logo = useData((s) => s.settings.logo || null);
   const pendingReqs = useData((s) => s.requests.filter((r) => r.status === 'Pending').length);
   const pendingAtt = useData((s) => s.attendance.filter((a) => a.status === 'pending').length);
   const pendingExp = useData((s) => s.expenditureRequests.filter((r) => r.status === 'Pending').length);
@@ -211,11 +213,11 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
       {/* Sidebar (desktop) */}
       <aside className="hidden md:flex w-64 flex-col bg-white border-r border-slate-100 fixed inset-y-0">
         <div className="h-16 flex items-center gap-2 px-5 border-b border-slate-100">
-          <div className="h-9 w-9 rounded-xl bg-brand-600 grid place-items-center text-white">
-            <Zap size={20} fill="white" />
+          <div className="h-9 w-9 rounded-xl bg-brand-600 grid place-items-center text-white overflow-hidden shrink-0">
+            {logo ? <img src={logo} alt="" className="h-full w-full object-cover" /> : <Zap size={20} fill="white" />}
           </div>
-          <div>
-            <div className="font-extrabold text-slate-800 leading-tight">BoltAp</div>
+          <div className="min-w-0">
+            <div className="font-extrabold text-slate-800 leading-tight truncate">{brandName}</div>
             <div className="text-[10px] text-slate-400 font-medium">Workforce Manager</div>
           </div>
           <div className="ml-auto flex items-center gap-0.5">
@@ -267,11 +269,11 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
       <div className="flex-1 md:ml-64 flex flex-col min-w-0">
         {/* Mobile top bar */}
         <header className="md:hidden h-14 flex items-center justify-between px-4 bg-white border-b border-slate-100 sticky top-0 z-30">
-          <div className="flex items-center gap-2">
-            <div className="h-8 w-8 rounded-lg bg-brand-600 grid place-items-center text-white">
-              <Zap size={17} fill="white" />
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="h-8 w-8 rounded-lg bg-brand-600 grid place-items-center text-white overflow-hidden shrink-0">
+              {logo ? <img src={logo} alt="" className="h-full w-full object-cover" /> : <Zap size={17} fill="white" />}
             </div>
-            <span className="font-extrabold text-slate-800">BoltAp</span>
+            <span className="font-extrabold text-slate-800 truncate">{brandName}</span>
           </div>
           <div className="flex items-center gap-1">
             {isAdmin && <TodayPlan />}

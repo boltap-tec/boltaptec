@@ -125,10 +125,10 @@ export const Login: React.FC = () => {
     <div className="min-h-full grid place-items-center p-4 bg-gradient-to-br from-brand-600 via-brand-700 to-indigo-900">
       <div className="w-full max-w-sm">
         <div className="text-center mb-6 text-white">
-          <div className="h-16 w-16 rounded-2xl bg-white/15 backdrop-blur grid place-items-center mx-auto mb-3 ring-1 ring-white/20">
-            <Zap size={34} fill="white" />
+          <div className="h-16 w-16 rounded-2xl bg-white/15 backdrop-blur grid place-items-center mx-auto mb-3 ring-1 ring-white/20 overflow-hidden">
+            {settings.logo ? <img src={settings.logo} alt="" className="h-full w-full object-cover" /> : <Zap size={34} fill="white" />}
           </div>
-          <h1 className="text-2xl font-extrabold">BoltAp</h1>
+          <h1 className="text-2xl font-extrabold">{settings.business_name?.trim() || 'BoltAp'}</h1>
           <p className="text-white/70 text-sm">Salary & Advance, made simple</p>
         </div>
 

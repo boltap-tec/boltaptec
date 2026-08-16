@@ -110,6 +110,7 @@ create table if not exists advance_requests (
 create table if not exists settings (
   id                int primary key default 1,
   business_name     text,
+  logo              text,
   admin_upi_id      text,
   admin_pin         text,
   standard_hours    numeric default 8,
@@ -132,6 +133,7 @@ alter table settings   add column if not exists location_required boolean defaul
 alter table settings   add column if not exists today_project_id   text;
 alter table settings   add column if not exists today_project_name text;
 alter table settings   add column if not exists today_plan_date    text;
+alter table settings   add column if not exists logo               text;
 
 -- ── Projects module ─────────────────────────────────────────────────────────
 create table if not exists projects (

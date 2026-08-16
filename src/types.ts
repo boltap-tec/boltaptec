@@ -208,6 +208,7 @@ export interface ExpenditureRequest {
 
 export interface Settings {
   business_name: string;
+  logo?: string | null;       // company logo (data URL) shown by the app name
   admin_upi_id: string;       // where employees pay back / receive
   admin_pin: string;          // admin login PIN (local demo only)
   standard_hours: number;     // hours per day (8)

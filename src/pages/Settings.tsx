@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { Save, RotateCcw, Database, Building2, CreditCard, Trash2, Info, FileSpreadsheet, Cloud, CloudOff, UploadCloud, DownloadCloud, MapPin } from 'lucide-react';
+import { Save, RotateCcw, Database, Building2, CreditCard, Trash2, Info, FileSpreadsheet, Cloud, CloudOff, UploadCloud, DownloadCloud, MapPin, Image as ImageIcon } from 'lucide-react';
 import { useData } from '../store/useData';
 import { Card, Field, Badge } from '../components/ui';
 import { isValidVpa } from '../lib/upi';
 import { downloadBackup } from '../lib/backup';
+import { compressImage } from '../lib/image';
 import { cloudEnabled, cloudState, pushAll, pullAll } from '../lib/cloud';
 
 export const Settings: React.FC = () => {
@@ -24,6 +25,12 @@ export const Settings: React.FC = () => {
     try { await pullAll(); setCloudMsg('✓ Loaded latest data from Supabase.'); }
     catch (e: any) { setCloudMsg('⚠️ ' + (e?.message || 'Download failed')); }
     finally { setBusy(false); }
+  };
+
+  const onLogo = async (file: File | null) => {
+    if (!file) return;
+    try { const d = await compressImage(file, 60 * 1024, 256); setForm((s) => ({ ...s, logo: d })); }
+    catch { alert('Could not use that image'); }
   };
 
   const save = () => {
@@ -91,7 +98,21 @@ export const Settings: React.FC = () => {
 
       <Card className="p-5 space-y-3">
         <h3 className="font-bold text-slate-700 flex items-center gap-2"><Building2 size={18} className="text-brand-500" /> Business Profile</h3>
-        <Field label="Business Name">
+        <div className="flex items-center gap-3">
+          <label className="relative cursor-pointer shrink-0">
+            <div className="h-16 w-16 rounded-2xl bg-slate-100 grid place-items-center overflow-hidden ring-1 ring-slate-200">
+              {form.logo ? <img src={form.logo} alt="logo" className="h-full w-full object-cover" /> : <ImageIcon size={24} className="text-slate-300" />}
+            </div>
+            <span className="absolute -bottom-1 -right-1 h-6 w-6 rounded-full bg-brand-600 text-white grid place-items-center ring-2 ring-white"><ImageIcon size={12} /></span>
+            <input type="file" accept="image/*" className="hidden" onChange={(e) => onLogo(e.target.files?.[0] || null)} />
+          </label>
+          <div className="text-sm text-slate-500">
+            <div className="font-semibold text-slate-700">Company Logo</div>
+            <div className="text-xs">Tap to upload — shown next to the app name.</div>
+            {form.logo && <button onClick={() => setForm({ ...form, logo: null })} className="text-xs text-rose-500 font-semibold mt-1">Remove logo</button>}
+          </div>
+        </div>
+        <Field label="Business Name" hint="Shown next to the logo across the app.">
           <input className="input" value={form.business_name} onChange={(e) => setForm({ ...form, business_name: e.target.value })} />
         </Field>
         <Field label="Business UPI ID" hint="Where salary/advance payments are sent from — shown on payment screens.">
