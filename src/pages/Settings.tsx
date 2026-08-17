@@ -154,12 +154,23 @@ export const Settings: React.FC = () => {
         <h3 className="font-bold text-slate-700 flex items-center gap-2"><ScanText size={18} className="text-brand-500" /> Bill Scanning (OCR)</h3>
         <p className="text-sm text-slate-500">Auto-read purchase bills (photos or PDFs) on the Add Purchase screen.</p>
         <Field label="Service">
-          <div className="grid grid-cols-2 gap-2">
-            <button onClick={() => setOcrProvider('ocrspace')} className={`btn ${ocrProvider === 'ocrspace' ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600'}`}>OCR.space (free)</button>
-            <button onClick={() => setOcrProvider('vision')} className={`btn ${ocrProvider === 'vision' ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600'}`}>Google Vision</button>
+          <div className="grid grid-cols-3 gap-2">
+            <button onClick={() => setOcrProvider('mindee')} className={`btn text-sm ${ocrProvider === 'mindee' ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600'}`}>Mindee</button>
+            <button onClick={() => setOcrProvider('ocrspace')} className={`btn text-sm ${ocrProvider === 'ocrspace' ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600'}`}>OCR.space</button>
+            <button onClick={() => setOcrProvider('vision')} className={`btn text-sm ${ocrProvider === 'vision' ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600'}`}>Vision</button>
           </div>
         </Field>
-        {ocrProvider === 'ocrspace' ? (
+        {ocrProvider === 'mindee' ? (
+          <>
+            <Field label="Mindee API Key" hint="Stored on THIS device only. Free 250 invoices/month.">
+              <input className="input" type="password" value={ocrKey} onChange={(e) => setOcrKey(e.target.value)} placeholder="your Mindee API key" autoComplete="off" />
+            </Field>
+            <div className="rounded-xl bg-emerald-50 text-emerald-700 p-3 text-xs flex gap-2">
+              <Info size={14} className="shrink-0 mt-0.5" />
+              <span><b>Recommended.</b> Built for invoices — fills the vendor, CGST/SGST/IGST and line items automatically. Free sign-up at <b>mindee.com</b> → create an Invoice OCR API → copy the API key. Works in the app and the web.</span>
+            </div>
+          </>
+        ) : ocrProvider === 'ocrspace' ? (
           <>
             <Field label="OCR.space API Key (optional)" hint="Works without a key using the free shared one. For reliability, get your own free key — stored on THIS device only.">
               <input className="input" type="password" value={ocrKey} onChange={(e) => setOcrKey(e.target.value)} placeholder="leave blank to use the free key" autoComplete="off" />

@@ -1,4 +1,60 @@
 import { usePrefs } from '../store/usePrefs';
+import type { PurchaseItem } from '../types';
+
+// Structured result from an invoice-AI provider (Mindee).
+export interface OcrStructured {
+  vendor: string | null;
+  date: string | null;
+  items: PurchaseItem[];
+  cgst: number;
+  sgst: number;
+  igst: number;
+}
+
+// Mindee Invoice OCR (free tier 250/month) → structured vendor, GST, line items.
+// CORS-open, so it works in the web app and the APK.
+export async function ocrMindee(file: File): Promise<OcrStructured> {
+  const key = usePrefs.getState().ocrKey.trim();
+  if (!key) throw new Error('Add your Mindee API key in Settings → Bill Scanning first.');
+  const fd = new FormData();
+  fd.append('document', file, file.name || 'bill');
+  let res: Response;
+  try {
+    res = await fetch('https://api.mindee.net/v1/products/mindee/invoices/v4/predict', {
+      method: 'POST', headers: { Authorization: `Token ${key}` }, body: fd,
+    });
+  } catch { throw new Error('Could not reach Mindee — check your internet connection.'); }
+  const data = await res.json().catch(() => null);
+  if (!res.ok) throw new Error(data?.api_request?.error?.message || `Mindee error (${res.status}). Check your API key.`);
+  const pred = data?.document?.inference?.prediction;
+  if (!pred) throw new Error('Mindee returned no data for that bill.');
+  const val = (f: any) => (f && f.value != null ? f.value : null);
+
+  const taxes: any[] = pred.taxes || [];
+  let cgst = 0, sgst = 0, igst = 0;
+  for (const t of taxes) {
+    const code = String(t.code || '').toLowerCase();
+    const v = Number(t.value) || 0;
+    if (code.includes('cgst')) cgst += v;
+    else if (code.includes('sgst') || code.includes('utgst')) sgst += v;
+    else if (code.includes('igst')) igst += v;
+  }
+  // Uncoded taxes: two equal amounts → CGST+SGST; a single one → IGST.
+  if (!cgst && !sgst && !igst && taxes.length) {
+    const a = Number(taxes[0]?.value) || 0, b = Number(taxes[1]?.value) || 0;
+    if (taxes.length >= 2 && Math.abs(a - b) < 0.5) { cgst = a; sgst = b; }
+    else if (taxes.length === 1) igst = a;
+  }
+
+  const items: PurchaseItem[] = (pred.line_items || []).map((li: any) => {
+    const qty = Number(li.quantity) || 0;
+    const rate = Number(li.unit_price) || 0;
+    const amount = Number(li.total_amount) || Math.round(qty * rate);
+    return { description: String(li.description || '').trim().replace(/\s+/g, ' '), qty, rate, amount };
+  }).filter((it: PurchaseItem) => it.description || it.amount);
+
+  return { vendor: val(pred.supplier_name), date: val(pred.date), items, cgst, sgst, igst };
+}
 
 // Read a File as a base64 data URL.
 export const fileToDataUrl = (file: File): Promise<string> =>

@@ -5,7 +5,7 @@ export type Lang = 'en' | 'ta';
 
 // Per-user, per-device preferences. NOT synced to the cloud — each person
 // (admin or a worker on their own phone) picks what's comfortable for them.
-export type OcrProvider = 'ocrspace' | 'vision';
+export type OcrProvider = 'ocrspace' | 'mindee' | 'vision';
 
 interface PrefsState {
   lang: Lang;

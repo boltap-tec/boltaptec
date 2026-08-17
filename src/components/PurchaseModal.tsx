@@ -5,7 +5,8 @@ import { Modal, Field } from './ui';
 import { inr, today } from '../lib/format';
 import { compressImage } from '../lib/image';
 import { parseTable, guessMapping, toItems, itemsTotal, type StdField } from '../lib/purchase';
-import { ocrFile, fileToDataUrl, ocrReady } from '../lib/ocr';
+import { ocrFile, ocrMindee, fileToDataUrl, ocrReady } from '../lib/ocr';
+import { usePrefs } from '../store/usePrefs';
 import type { Project, PurchaseItem } from '../types';
 
 const FIELDS: { key: StdField; label: string }[] = [
@@ -76,14 +77,29 @@ export const PurchaseModal: React.FC<{ open: boolean; project: Project; onClose:
     if (!ocrReady()) { alert('Set up bill scanning in Settings → Bill Scanning first.'); return; }
     setScanning(true);
     try {
-      // Detect PDF by extension too — phones often report an empty/octet-stream MIME.
       const name = file.name || '';
       const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(name);
       const isImg = !isPdf && (file.type.startsWith('image/') || /\.(jpe?g|png|webp|heic|heif|bmp)$/i.test(name));
+
+      if (usePrefs.getState().ocrProvider === 'mindee') {
+        // Invoice-AI: fills the table + vendor + GST directly, structured.
+        const s = await ocrMindee(file);
+        if (s.items.length) setItems(s.items);
+        if (s.vendor) setVendor(s.vendor);
+        if (s.date) setDate(s.date);
+        if (s.cgst) setCgst(String(s.cgst));
+        if (s.sgst) setSgst(String(s.sgst));
+        if (s.igst) setIgst(String(s.igst));
+        if (isImg) { try { setBill(await compressImage(file, 120 * 1024, 900)); } catch { /* keep going */ } }
+        if (!s.items.length && !s.vendor) alert('Mindee could not read line items from this bill — check the rows.');
+        return;
+      }
+
+      // Text OCR (OCR.space / Vision) → paste box + column mapping.
       let dataUrl: string;
       if (isImg) {
         try { dataUrl = await compressImage(file, 900 * 1024, 1600); }
-        catch { dataUrl = await fileToDataUrl(file); }  // fall back if it's not a canvas-decodable image
+        catch { dataUrl = await fileToDataUrl(file); }
       } else {
         dataUrl = await fileToDataUrl(file);
       }
