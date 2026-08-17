@@ -28,6 +28,7 @@ export const PurchaseModal: React.FC<{ open: boolean; project: Project; onClose:
   const [cgst, setCgst] = useState('');
   const [sgst, setSgst] = useState('');
   const [igst, setIgst] = useState('');
+  const [gstMode, setGstMode] = useState<'amount' | 'percent'>('amount');  // bill shows ₹ or %
   const [bill, setBill] = useState<string | null>(null);
   const [remark, setRemark] = useState('');
 
@@ -131,7 +132,10 @@ export const PurchaseModal: React.FC<{ open: boolean; project: Project; onClose:
 
   const cleanItems = items.filter((it) => it.description || it.amount);
   const subtotal = itemsTotal(cleanItems);
-  const gst = (Number(cgst) || 0) + (Number(sgst) || 0) + (Number(igst) || 0);
+  // A GST field can be a rupee amount or a % of the subtotal (per the bill).
+  const gstAmt = (v: string) => (gstMode === 'percent' ? Math.round(subtotal * (Number(v) || 0) / 100) : (Number(v) || 0));
+  const cgstAmt = gstAmt(cgst), sgstAmt = gstAmt(sgst), igstAmt = gstAmt(igst);
+  const gst = cgstAmt + sgstAmt + igstAmt;
   const total = subtotal + gst;
 
   const save = () => {
@@ -144,7 +148,7 @@ export const PurchaseModal: React.FC<{ open: boolean; project: Project; onClose:
       amount: total, remark: remark.trim() || null,
       images: bill ? [bill] : null, items: cleanItems, source: 'admin',
       vendor: vendor.trim() || null,
-      cgst: Number(cgst) || null, sgst: Number(sgst) || null, igst: Number(igst) || null,
+      cgst: cgstAmt || null, sgst: sgstAmt || null, igst: igstAmt || null,
     });
     // reset
     setItems([{ description: '', qty: 0, rate: 0, amount: 0 }]); setBill(null); setRemark(''); setPasteText('');
@@ -248,17 +252,26 @@ export const PurchaseModal: React.FC<{ open: boolean; project: Project; onClose:
           </div>
         </div>
 
-        {/* GST breakdown */}
+        {/* GST — optional. Fill only what the bill shows (₹ or %); leave blank if none. */}
         <div>
-          <span className="label">GST (enter amounts from the bill)</span>
-          <div className="grid grid-cols-3 gap-2">
-            <label className="text-xs"><span className="block text-slate-400 font-semibold mb-0.5">CGST ₹</span>
-              <input className="input py-1.5 text-sm" inputMode="decimal" value={cgst} onChange={(e) => setCgst(e.target.value)} placeholder="0" /></label>
-            <label className="text-xs"><span className="block text-slate-400 font-semibold mb-0.5">SGST ₹</span>
-              <input className="input py-1.5 text-sm" inputMode="decimal" value={sgst} onChange={(e) => setSgst(e.target.value)} placeholder="0" /></label>
-            <label className="text-xs"><span className="block text-slate-400 font-semibold mb-0.5">IGST ₹</span>
-              <input className="input py-1.5 text-sm" inputMode="decimal" value={igst} onChange={(e) => setIgst(e.target.value)} placeholder="0" /></label>
+          <div className="flex items-center justify-between mb-1">
+            <span className="label mb-0">GST <span className="font-normal text-slate-400">— optional, fill what the bill shows</span></span>
+            <div className="flex rounded-lg bg-slate-100 p-0.5 text-xs font-bold">
+              {(['amount', 'percent'] as const).map((m) => (
+                <button key={m} onClick={() => setGstMode(m)} className={`px-2 py-0.5 rounded-md ${gstMode === m ? 'bg-white shadow-sm text-brand-600' : 'text-slate-500'}`}>{m === 'amount' ? '₹' : '%'}</button>
+              ))}
+            </div>
           </div>
+          <div className="grid grid-cols-3 gap-2">
+            {([['CGST', cgst, setCgst, cgstAmt], ['SGST', sgst, setSgst, sgstAmt], ['IGST', igst, setIgst, igstAmt]] as const).map(([label, val, set, amt]) => (
+              <label key={label} className="text-xs">
+                <span className="block text-slate-400 font-semibold mb-0.5">{label} {gstMode === 'amount' ? '₹' : '%'}</span>
+                <input className="input py-1.5 text-sm" inputMode="decimal" value={val} onChange={(e) => set(e.target.value)} placeholder="0" />
+                {gstMode === 'percent' && Number(val) > 0 && <span className="block text-[10px] text-slate-400 mt-0.5">= {inr(amt)}</span>}
+              </label>
+            ))}
+          </div>
+          <div className="text-[11px] text-slate-400 mt-1">Intra-state → CGST + SGST · Inter-state → IGST · No GST → leave all blank.</div>
         </div>
 
         <div className="rounded-xl bg-slate-50 px-3 py-2 space-y-1">
