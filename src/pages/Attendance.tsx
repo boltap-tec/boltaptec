@@ -175,15 +175,14 @@ export const Attendance: React.FC = () => {
           <div className="flex-1" />
           {a.status === 'pending' && (
             <>
-              <button onClick={() => openEdit(a)} className="btn-ghost px-2.5 py-1 text-xs"><Pencil size={13} /> Correct</button>
               {closed
-                ? <button onClick={() => postAttendance(a.id)} className="btn-success px-2.5 py-1 text-xs"><CheckCircle2 size={13} /> Approve</button>
+                ? <button onClick={() => openEdit(a)} className="btn-success px-2.5 py-1 text-xs"><Pencil size={13} /> Correct &amp; Approve</button>
                 : <span className="text-[11px] text-slate-400 font-semibold px-1">Waiting for worker to close</span>}
               <button onClick={() => reject(a)} className="btn-ghost px-2.5 py-1 text-xs text-rose-500"><XCircle size={13} /> Reject</button>
             </>
           )}
           {a.status === 'rejected' && (
-            <button onClick={() => postAttendance(a.id)} className="btn-ghost px-2.5 py-1 text-xs text-emerald-600"><CheckCircle2 size={13} /> Approve instead</button>
+            <button onClick={() => openEdit(a)} className="btn-ghost px-2.5 py-1 text-xs text-emerald-600"><Pencil size={13} /> Correct &amp; Approve</button>
           )}
           {a.status === 'posted' && <span className="text-[11px] text-emerald-600 font-semibold px-1 inline-flex items-center gap-1"><CheckCircle2 size={12} /> In ledger</span>}
           <button onClick={() => { if (confirmAction(`Delete ${a.employee_name}'s attendance?`)) deleteAttendance(a.id); }} className="p-1.5 rounded-lg text-rose-300 hover:bg-rose-50"><Trash2 size={14} /></button>
@@ -473,7 +472,7 @@ export const Attendance: React.FC = () => {
           <div className="flex gap-2 pt-1">
             <button onClick={() => { if (editRow && confirm('Delete this record?')) { deleteAttendance(editRow.id); setEditRow(null); } }} className="btn-danger px-3"><Trash2 size={16} /></button>
             <button onClick={() => setEditRow(null)} className="btn-ghost flex-1">Cancel</button>
-            {editRow?.status === 'pending'
+            {editRow && editRow.source === 'employee' && editRow.status !== 'posted'
               ? <button onClick={() => { const id = editRow.id; saveEdit(); postAttendance(id); }} disabled={!eOut} className="btn-success flex-1"><Send size={15} /> Save & Approve</button>
               : <button onClick={saveEdit} className="btn-primary flex-1">Save</button>}
           </div>

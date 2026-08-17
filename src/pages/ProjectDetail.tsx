@@ -2,7 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
   ArrowLeft, Wallet, Receipt, TrendingUp, TrendingDown, HardHat, Plus, Trash2,
-  Banknote, Pencil, Briefcase, HandCoins, ShoppingCart,
+  Banknote, Pencil, Briefcase, HandCoins, ShoppingCart, BookOpen,
 } from 'lucide-react';
 import { useData } from '../store/useData';
 import { Card, Modal, Field, Badge, EmptyState, StatCard, Avatar } from '../components/ui';
@@ -47,6 +47,7 @@ export const ProjectDetail: React.FC = () => {
     [projectPayments, projectId],
   );
   const labourFromAtt = useMemo(() => labourFromAttendance(attendance, projectId), [attendance, projectId]);
+
   // Per-shift labour entries for this project (from attendance allocations).
   const labourRows = useMemo(
     () => attendance
@@ -56,6 +57,14 @@ export const ProjectDetail: React.FC = () => {
       .sort((a, b) => (a.date < b.date ? 1 : -1)),
     [attendance, projectId],
   );
+
+  // Project ledger — every money movement (payments in, expenditure + labour out).
+  const ledgerRows = useMemo(() => {
+    const inflow = pays.map((p) => ({ id: 'pay_' + p.id, date: p.date, dir: 'in' as const, label: 'Payment received', sub: `${p.method || 'Cash'}${p.remark ? ` · ${p.remark}` : ''}`, amount: p.amount }));
+    const outflow = exps.map((e) => ({ id: 'exp_' + e.id, date: e.date, dir: 'out' as const, label: e.category_name, sub: `${e.description || ''}${e.vendor ? ` · ${e.vendor}` : ''}`.replace(/^ · /, ''), amount: e.amount }));
+    const labour = labourRows.map((r, i) => ({ id: 'lab_' + r.id + i, date: r.date, dir: 'out' as const, label: 'Labour', sub: `${r.name} · ${r.hours}h`, amount: r.amount }));
+    return [...inflow, ...outflow, ...labour].sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
+  }, [pays, exps, labourRows]);
 
   if (!project || !fin) return (
     <div className="space-y-4">
@@ -128,6 +137,32 @@ export const ProjectDetail: React.FC = () => {
         <button onClick={() => setExpOpen(true)} className="btn-primary"><Plus size={16} /> Add Expenditure</button>
         <button onClick={() => setPurchaseOpen(true)} className="btn-ghost col-span-2"><ShoppingCart size={16} /> Add Purchase (bill / paste table)</button>
       </div>
+
+      {/* Project Ledger — full money-movement statement for this project */}
+      <Card className="overflow-hidden">
+        <div className="px-4 py-2.5 bg-slate-50 border-b border-slate-100 font-bold text-slate-700 text-sm flex items-center justify-between">
+          <span className="flex items-center gap-2"><BookOpen size={16} className="text-brand-500" /> Project Ledger</span>
+          <span className="text-xs font-semibold"><span className="text-emerald-600">+{inr(fin.received)}</span> <span className="text-slate-300">/</span> <span className="text-rose-500">−{inr(fin.expenditure)}</span></span>
+        </div>
+        {ledgerRows.length === 0 ? (
+          <div className="p-5"><EmptyState title="No transactions yet" hint="Payments received and expenditure appear here as a running history." /></div>
+        ) : (
+          <div className="divide-y divide-slate-50 max-h-96 overflow-y-auto">
+            {ledgerRows.slice(0, 200).map((r) => (
+              <div key={r.id} className="flex items-center gap-3 px-4 py-2.5">
+                <div className={`h-8 w-8 rounded-lg grid place-items-center ${r.dir === 'in' ? 'bg-emerald-50 text-emerald-500' : 'bg-rose-50 text-rose-400'}`}>
+                  {r.dir === 'in' ? <Wallet size={15} /> : <Receipt size={15} />}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-semibold text-slate-700 truncate">{r.label}</div>
+                  <div className="text-xs text-slate-400 truncate">{fmtDate(r.date)}{r.sub ? ` · ${r.sub}` : ''}</div>
+                </div>
+                <span className={`text-sm font-bold ${r.dir === 'in' ? 'text-emerald-600' : 'text-rose-500'}`}>{r.dir === 'in' ? '+' : '−'}{inr(r.amount)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
 
       {/* Labour expenditure — from attendance allocated to this project */}
       <Card className="overflow-hidden">

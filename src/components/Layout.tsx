@@ -238,7 +238,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 
         {/* Mobile full-menu drawer (opened from the logo) */}
         {menuOpen && (
-          <div className="md:hidden fixed inset-0 z-[60]">
+          <div className="fixed inset-0 z-[60]">
             <div className="absolute inset-0 bg-black/40" onClick={() => setMenuOpen(false)} />
             <div className="absolute left-0 top-0 bottom-0 w-72 max-w-[85%] bg-white shadow-xl flex flex-col">
               <div className="h-14 flex items-center gap-2 px-4 border-b border-slate-100">
@@ -301,7 +301,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
       {/* Main */}
       <div className="flex-1 md:ml-64 flex flex-col min-w-0">
         {/* Mobile top bar */}
-        <header className="md:hidden h-14 flex items-center justify-between px-4 bg-white border-b border-slate-100 sticky top-0 z-30">
+        <header className="h-14 flex items-center justify-between px-4 bg-white border-b border-slate-100 sticky top-0 z-30">
           <button onClick={() => setMenuOpen(true)} className="flex items-center gap-2 min-w-0" title="Menu">
             <div className="h-8 w-8 rounded-lg bg-brand-600 grid place-items-center text-white overflow-hidden shrink-0">
               {logo ? <img src={logo} alt="" className="h-full w-full object-cover" /> : <Zap size={17} fill="white" />}
