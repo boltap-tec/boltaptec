@@ -211,8 +211,8 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 
   return (
     <div className="min-h-full flex">
-      {/* Sidebar (desktop) */}
-      <aside className="hidden md:flex w-64 flex-col bg-white border-r border-slate-100 fixed inset-y-0">
+      {/* Sidebar removed — navigation is the top menu (☰) drawer on all sizes. */}
+      <aside className="hidden">
         <div className="h-16 flex items-center gap-2 px-5 border-b border-slate-100">
           <div className="h-9 w-9 rounded-xl bg-brand-600 grid place-items-center text-white overflow-hidden shrink-0">
             {logo ? <img src={logo} alt="" className="h-full w-full object-cover" /> : <Zap size={20} fill="white" />}
@@ -299,7 +299,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
       </aside>
 
       {/* Main */}
-      <div className="flex-1 md:ml-64 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0">
         {/* Mobile top bar */}
         <header className="h-14 flex items-center justify-between px-4 bg-white border-b border-slate-100 sticky top-0 z-30">
           <button onClick={() => setMenuOpen(true)} className="flex items-center gap-2 min-w-0" title="Menu">
