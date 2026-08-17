@@ -89,8 +89,19 @@ export async function pullAll() {
     if (cloudRows.length === 0 && localRows.length > 0) continue;
     patch[t.slice] = cloudRows;
   }
-  if (settings) patch.settings = stripId(settings);
+  // Merge cloud settings over local, but never let a null/undefined cloud value
+  // clobber a real local one (e.g. a logo not yet synced because its column is
+  // missing or null in the cloud).
+  if (settings) patch.settings = mergeSettings(st.settings, settings);
   useData.setState(patch);
+}
+
+// Overlay only the defined (non-null) cloud settings onto local.
+function mergeSettings(local: any, cloud: any): Settings {
+  const clean = Object.fromEntries(
+    Object.entries(stripId(cloud)).filter(([, v]) => v !== null && v !== undefined),
+  );
+  return { ...local, ...clean } as Settings;
 }
 
 const stripId = (s: any): Settings => {
@@ -159,7 +170,7 @@ function applyRealtime(table: string, evt: string, row: AnyRow | null, oldRow: A
   applyingRealtime = true;
   try {
     if (table === 'settings') {
-      if (row) useData.setState({ settings: stripId(row) as any });
+      if (row) useData.setState({ settings: mergeSettings(useData.getState().settings, row) as any });
       return;
     }
     const cfg = TABLES.find((t) => t.table === table);
