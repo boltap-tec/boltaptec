@@ -15,6 +15,14 @@ export const Settings: React.FC = () => {
   const [saved, setSaved] = useState(false);
   const [cloudMsg, setCloudMsg] = useState('');
   const [busy, setBusy] = useState(false);
+  // Bill Scanning is a draft until saved (so choosing the API + key is deliberate).
+  const [ocrDraft, setOcrDraft] = useState({ provider: ocrProvider, key: ocrKey });
+  const [ocrSaved, setOcrSaved] = useState(false);
+  const saveOcr = () => {
+    setOcrProvider(ocrDraft.provider);
+    setOcrKey(ocrDraft.key.trim());
+    setOcrSaved(true); setTimeout(() => setOcrSaved(false), 1800);
+  };
 
   const cloudPush = async () => {
     setBusy(true); setCloudMsg('');
@@ -153,27 +161,27 @@ export const Settings: React.FC = () => {
       <Card className="p-5 space-y-3">
         <h3 className="font-bold text-slate-700 flex items-center gap-2"><ScanText size={18} className="text-brand-500" /> Bill Scanning (OCR)</h3>
         <p className="text-sm text-slate-500">Auto-read purchase bills (photos or PDFs) on the Add Purchase screen.</p>
-        <Field label="Service">
+        <Field label="Service — choose one, then Save">
           <div className="grid grid-cols-3 gap-2">
-            <button onClick={() => setOcrProvider('mindee')} className={`btn text-sm ${ocrProvider === 'mindee' ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600'}`}>Mindee</button>
-            <button onClick={() => setOcrProvider('ocrspace')} className={`btn text-sm ${ocrProvider === 'ocrspace' ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600'}`}>OCR.space</button>
-            <button onClick={() => setOcrProvider('vision')} className={`btn text-sm ${ocrProvider === 'vision' ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600'}`}>Vision</button>
+            <button onClick={() => setOcrDraft({ ...ocrDraft, provider: 'mindee' })} className={`btn text-sm ${ocrDraft.provider === 'mindee' ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600'}`}>Mindee</button>
+            <button onClick={() => setOcrDraft({ ...ocrDraft, provider: 'ocrspace' })} className={`btn text-sm ${ocrDraft.provider === 'ocrspace' ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600'}`}>OCR.space</button>
+            <button onClick={() => setOcrDraft({ ...ocrDraft, provider: 'vision' })} className={`btn text-sm ${ocrDraft.provider === 'vision' ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600'}`}>Vision</button>
           </div>
         </Field>
-        {ocrProvider === 'mindee' ? (
+        {ocrDraft.provider === 'mindee' ? (
           <>
             <Field label="Mindee API Key" hint="Stored on THIS device only.">
-              <input className="input" type="password" value={ocrKey} onChange={(e) => setOcrKey(e.target.value)} placeholder="your Mindee API key" autoComplete="off" />
+              <input className="input" type="password" value={ocrDraft.key} onChange={(e) => setOcrDraft({ ...ocrDraft, key: e.target.value })} placeholder="your Mindee API key" autoComplete="off" />
             </Field>
             <div className="rounded-xl bg-amber-50 text-amber-700 p-3 text-xs flex gap-2">
               <Info size={14} className="shrink-0 mt-0.5" />
-              <span><b>Most accurate</b> — auto-fills vendor, CGST/SGST/IGST and line items. But Mindee is a <b>14-day free trial, then paid</b> (from ~$44/mo). For free forever, use OCR.space below.</span>
+              <span><b>Most accurate</b> — auto-fills vendor, CGST/SGST/IGST and line items. But Mindee is a <b>14-day free trial, then paid</b> (from ~$44/mo). For free forever, use OCR.space.</span>
             </div>
           </>
-        ) : ocrProvider === 'ocrspace' ? (
+        ) : ocrDraft.provider === 'ocrspace' ? (
           <>
             <Field label="OCR.space API Key (optional)" hint="Works without a key using the free shared one. For reliability, get your own free key — stored on THIS device only.">
-              <input className="input" type="password" value={ocrKey} onChange={(e) => setOcrKey(e.target.value)} placeholder="leave blank to use the free key" autoComplete="off" />
+              <input className="input" type="password" value={ocrDraft.key} onChange={(e) => setOcrDraft({ ...ocrDraft, key: e.target.value })} placeholder="leave blank to use the free key" autoComplete="off" />
             </Field>
             <div className="rounded-xl bg-emerald-50 text-emerald-700 p-3 text-xs flex gap-2">
               <Info size={14} className="shrink-0 mt-0.5" />
@@ -183,7 +191,7 @@ export const Settings: React.FC = () => {
         ) : (
           <>
             <Field label="Google Vision API Key" hint="Stored on THIS device only. Restrict the key to the Vision API in Google Cloud.">
-              <input className="input" type="password" value={ocrKey} onChange={(e) => setOcrKey(e.target.value)} placeholder="AIza…" autoComplete="off" />
+              <input className="input" type="password" value={ocrDraft.key} onChange={(e) => setOcrDraft({ ...ocrDraft, key: e.target.value })} placeholder="AIza…" autoComplete="off" />
             </Field>
             <div className="rounded-xl bg-sky-50 text-sky-700 p-3 text-xs flex gap-2">
               <Info size={14} className="shrink-0 mt-0.5" />
@@ -191,6 +199,9 @@ export const Settings: React.FC = () => {
             </div>
           </>
         )}
+        <button onClick={saveOcr} className="btn-primary w-full">
+          {ocrSaved ? '✓ Bill scanning saved' : <><Save size={16} /> Save Bill Scanning</>}
+        </button>
       </Card>
 
       <Card className="p-5 space-y-3">
