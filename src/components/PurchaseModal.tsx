@@ -34,25 +34,42 @@ export const PurchaseModal: React.FC<{ open: boolean; project: Project; onClose:
   // paste + mapping
   const [showPaste, setShowPaste] = useState(false);
   const [pasteText, setPasteText] = useState('');
-  const [skipHeader, setSkipHeader] = useState(true);
+  // Item-table region: only rows fromRow..toRow (1-based, inclusive) are imported,
+  // so the header/address/GST/footer text is left out. Different bills → adjust.
+  const [fromRow, setFromRow] = useState(1);
+  const [toRow, setToRow] = useState(0);
   const parsed = useMemo(() => parseTable(pasteText), [pasteText]);
   const [map, setMap] = useState<Record<StdField, number>>({ description: 0, qty: 1, rate: 2, amount: 3 });
   const cols = parsed.reduce((m, r) => Math.max(m, r.length), 0);
+  const clampFrom = Math.min(Math.max(1, fromRow), Math.max(1, parsed.length));
+  const clampTo = Math.min(Math.max(clampFrom, toRow), parsed.length);
+  const region = parsed.slice(clampFrom - 1, clampTo);
+  const previewItems = toItems(region, map, false);
 
   const reguess = (text: string) => {
     setPasteText(text);
     const rows = parseTable(text);
     if (rows.length) setMap(guessMapping(rows));
+    // Default the range to a plausible item block: skip the first header line.
+    setFromRow(rows.length > 1 ? 2 : 1);
+    setToRow(rows.length);
   };
 
   const importRows = () => {
-    const imported = toItems(parsed, map, skipHeader);
-    if (imported.length === 0) return;
+    if (previewItems.length === 0) return;
     setItems((cur) => {
       const base = cur.filter((it) => it.description || it.amount);
-      return [...base, ...imported];
+      return [...base, ...previewItems];
     });
     setShowPaste(false); setPasteText('');
+  };
+
+  // Tap a preview row to set the item-table start/end (nearest boundary moves).
+  const onRowClick = (n: number) => {
+    if (n < clampFrom) setFromRow(n);
+    else if (n > clampTo) setToRow(n);
+    else if (n - clampFrom <= clampTo - n) setFromRow(n);
+    else setToRow(n);
   };
 
   const setItem = (i: number, patch: Partial<PurchaseItem>) =>
@@ -163,11 +180,40 @@ export const PurchaseModal: React.FC<{ open: boolean; project: Project; onClose:
 
           {showPaste && (
             <div className="rounded-xl border border-brand-200 bg-brand-50/40 p-3 mb-2 space-y-2">
-              <div className="text-xs text-slate-500">Paste rows copied from your bill / PDF / Excel. Then map the columns.</div>
+              <div className="text-xs text-slate-500">Paste rows from your bill (or use Scan). Then pick where the item table <b>starts</b> and <b>ends</b> and map the columns.</div>
               <textarea className="input font-mono text-xs" rows={4} value={pasteText} onChange={(e) => reguess(e.target.value)}
                 placeholder={'Cement 50kg\t10\t380\t3800\nSand\t2\t1500\t3000'} />
               {parsed.length > 0 && (
                 <>
+                  {/* Item-table region */}
+                  <div className="flex items-center flex-wrap gap-x-3 gap-y-1 text-xs text-slate-600">
+                    <span className="font-semibold">Item rows</span>
+                    <label className="flex items-center gap-1">from
+                      <input type="number" min={1} max={parsed.length} className="input py-1 w-14 text-xs" value={clampFrom} onChange={(e) => setFromRow(Number(e.target.value) || 1)} />
+                    </label>
+                    <label className="flex items-center gap-1">to
+                      <input type="number" min={clampFrom} max={parsed.length} className="input py-1 w-14 text-xs" value={clampTo} onChange={(e) => setToRow(Number(e.target.value) || parsed.length)} />
+                    </label>
+                    <span className="text-slate-400">of {parsed.length} · tap rows below</span>
+                  </div>
+                  <div className="max-h-40 overflow-auto rounded-lg bg-white border border-slate-200 text-[11px]">
+                    <table className="w-full">
+                      <tbody>
+                        {parsed.map((r, ri) => {
+                          const n = ri + 1;
+                          const inRange = n >= clampFrom && n <= clampTo;
+                          return (
+                            <tr key={ri} onClick={() => onRowClick(n)}
+                              className={`cursor-pointer border-b border-slate-50 ${inRange ? 'bg-brand-50 text-slate-700' : 'text-slate-300 hover:bg-slate-50'}`}>
+                              <td className="px-1.5 py-1 text-right text-slate-300 select-none">{n}</td>
+                              {r.map((c, ci) => <td key={ci} className="px-2 py-1 whitespace-nowrap">{c}</td>)}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  {/* Column mapping */}
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                     {FIELDS.map((f) => (
                       <label key={f.key} className="text-xs">
@@ -179,21 +225,7 @@ export const PurchaseModal: React.FC<{ open: boolean; project: Project; onClose:
                       </label>
                     ))}
                   </div>
-                  <label className="flex items-center gap-2 text-xs text-slate-600">
-                    <input type="checkbox" className="accent-brand-600" checked={skipHeader} onChange={(e) => setSkipHeader(e.target.checked)} /> First row is a header (skip it)
-                  </label>
-                  <div className="max-h-28 overflow-auto rounded-lg bg-white border border-slate-200 text-[11px]">
-                    <table className="w-full">
-                      <tbody>
-                        {parsed.slice(0, 6).map((r, ri) => (
-                          <tr key={ri} className={`${ri === 0 && skipHeader ? 'text-slate-300' : 'text-slate-600'} border-b border-slate-50`}>
-                            {r.map((c, ci) => <td key={ci} className="px-2 py-1 whitespace-nowrap">{c}</td>)}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                  <button onClick={importRows} className="btn-primary w-full py-1.5 text-sm">Import {toItems(parsed, map, skipHeader).length} rows</button>
+                  <button onClick={importRows} disabled={previewItems.length === 0} className="btn-primary w-full py-1.5 text-sm">Import {previewItems.length} rows</button>
                 </>
               )}
             </div>
