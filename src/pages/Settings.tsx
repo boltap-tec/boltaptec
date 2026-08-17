@@ -308,7 +308,7 @@ export const Settings: React.FC = () => {
           <summary className="font-semibold text-slate-600 cursor-pointer">One-time setup (≈2 min) — how to connect Drive</summary>
           <ol className="list-decimal ml-4 mt-2 space-y-1">
             <li>Open <b>script.google.com</b> → <b>New project</b>.</li>
-            <li>Delete the sample code, paste the BoltAp backup script (given to you), and Save.</li>
+            <li>Delete the sample code, paste the Boltaptec backup script (given to you), and Save.</li>
             <li>Click <b>Deploy → New deployment → Web app</b>. Set <b>Execute as: Me</b> and <b>Who has access: Anyone</b>. Deploy &amp; authorize.</li>
             <li>Copy the <b>Web app URL</b> (ends in <code>/exec</code>) and paste it above, then Save.</li>
             <li>Backups land in folder ID <code>{DRIVE_FOLDER_ID}</code>.</li>
@@ -353,7 +353,7 @@ export const Settings: React.FC = () => {
         <button onClick={saveQuick} className="btn-primary w-full">{quickSaved ? '✓ Quick menu saved' : <><Save size={16} /> Save Quick Menu</>}</button>
       </Card>
 
-      <p className="text-center text-xs text-slate-400 py-2">BoltAp Workforce Manager · v1.0 · Local build</p>
+      <p className="text-center text-xs text-slate-400 py-2">Boltaptec Workforce Manager · v1.0 · Local build</p>
 
       <Modal open={wipeOpen} onClose={() => !wiping && setWipeOpen(false)} title="Wipe All Data">
         <div className="space-y-4">

@@ -33,7 +33,7 @@ export const generatePayslip = (
   doc.setTextColor(255); doc.setFont('helvetica', 'bold'); doc.setFontSize(16);
   doc.text(initials(emp.name), M + 22, 58, { align: 'center' });
 
-  doc.setFontSize(18); doc.text(settings.business_name || 'BoltAp', M + 58, 46);
+  doc.setFontSize(18); doc.text(settings.business_name || 'Boltaptec', M + 58, 46);
   doc.setFont('helvetica', 'normal'); doc.setFontSize(11); doc.setTextColor(220, 222, 250);
   doc.text('SALARY PAYSLIP', M + 58, 66);
   doc.setFontSize(9);
@@ -113,8 +113,8 @@ export const generatePayslip = (
   doc.setDrawColor(230, 232, 240); doc.setLineWidth(0.5);
   doc.line(M, H - 40, W - M, H - 40);
   doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...MUTED);
-  doc.text(`${settings.business_name || 'BoltAp'} — computer-generated payslip. No signature required.`, M, H - 26);
-  doc.text('Powered by BoltAp', W - M, H - 26, { align: 'right' });
+  doc.text(`${settings.business_name || 'Boltaptec'} — computer-generated payslip. No signature required.`, M, H - 26);
+  doc.text('Powered by Boltaptec', W - M, H - 26, { align: 'right' });
 
   const filename = `Payslip_${emp.name.replace(/\s+/g, '_')}_${new Date().toISOString().slice(0, 10)}.pdf`;
   return { doc, filename };

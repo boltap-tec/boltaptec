@@ -141,7 +141,7 @@ export const seedProjectExpenditure = (): ProjectExpenditure[] => (rawProjectExp
 export const seedProjectPayments = (): ProjectPayment[] => [];
 
 export const defaultSettings = (): Settings => ({
-  business_name: 'BoltAp Workforce',
+  business_name: 'Boltaptec',
   admin_upi_id: 'yourbusiness@okaxis',
   admin_pin: '1234',
   standard_hours: 8,

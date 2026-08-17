@@ -50,7 +50,7 @@ export const buildWorkbook = (d: BackupData): XLSX.WorkBook => {
 
 export const backupFileName = (label = ''): string => {
   const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
-  return `BoltAp_Backup${label ? '_' + label.replace(/[^\w-]/g, '') : ''}_${stamp}.xlsx`;
+  return `Boltaptec_Backup${label ? '_' + label.replace(/[^\w-]/g, '') : ''}_${stamp}.xlsx`;
 };
 
 export const downloadBackup = (d: BackupData, label = ''): string => {

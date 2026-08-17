@@ -177,7 +177,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   const { session, logout } = useAuth();
   const navigate = useNavigate();
   const t = useT();
-  const brandName = useData((s) => s.settings.business_name?.trim() || 'BoltAp');
+  const brandName = useData((s) => s.settings.business_name?.trim() || 'Boltaptec');
   const logo = useData((s) => s.settings.logo || null);
   const pendingReqs = useData((s) => s.requests.filter((r) => r.status === 'Pending').length);
   const pendingAtt = useData((s) => s.attendance.filter((a) => a.status === 'pending').length);

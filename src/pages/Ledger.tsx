@@ -43,7 +43,7 @@ export const Ledger: React.FC = () => {
     ].join(','));
     const blob = new Blob([[head.join(','), ...lines].join('\n')], { type: 'text/csv' });
     const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob); a.download = 'boltap-ledger.csv'; a.click();
+    a.href = URL.createObjectURL(blob); a.download = 'boltaptec-ledger.csv'; a.click();
   };
 
   return (

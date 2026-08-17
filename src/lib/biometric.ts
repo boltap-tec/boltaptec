@@ -30,7 +30,7 @@ export const biometricUnlock = async (userId: string, label: string): Promise<bo
       const cred: any = await navigator.credentials.create({
         publicKey: {
           challenge: rand(),
-          rp: { name: 'BoltAp' },
+          rp: { name: 'Boltaptec' },
           user: { id: new TextEncoder().encode(userId), name: label, displayName: label },
           pubKeyCredParams: [{ type: 'public-key', alg: -7 }, { type: 'public-key', alg: -257 }],
           authenticatorSelection: { authenticatorAttachment: 'platform', userVerification: 'required' },
