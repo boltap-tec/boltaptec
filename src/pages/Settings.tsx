@@ -162,12 +162,12 @@ export const Settings: React.FC = () => {
         </Field>
         {ocrProvider === 'mindee' ? (
           <>
-            <Field label="Mindee API Key" hint="Stored on THIS device only. Free 250 invoices/month.">
+            <Field label="Mindee API Key" hint="Stored on THIS device only.">
               <input className="input" type="password" value={ocrKey} onChange={(e) => setOcrKey(e.target.value)} placeholder="your Mindee API key" autoComplete="off" />
             </Field>
-            <div className="rounded-xl bg-emerald-50 text-emerald-700 p-3 text-xs flex gap-2">
+            <div className="rounded-xl bg-amber-50 text-amber-700 p-3 text-xs flex gap-2">
               <Info size={14} className="shrink-0 mt-0.5" />
-              <span><b>Recommended.</b> Built for invoices — fills the vendor, CGST/SGST/IGST and line items automatically. Free sign-up at <b>mindee.com</b> → create an Invoice OCR API → copy the API key. Works in the app and the web.</span>
+              <span><b>Most accurate</b> — auto-fills vendor, CGST/SGST/IGST and line items. But Mindee is a <b>14-day free trial, then paid</b> (from ~$44/mo). For free forever, use OCR.space below.</span>
             </div>
           </>
         ) : ocrProvider === 'ocrspace' ? (
