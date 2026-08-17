@@ -11,7 +11,7 @@ import { beep } from '../lib/alarm';
 import { today } from '../lib/format';
 import { usePrefs } from '../store/usePrefs';
 import { useT, LANGUAGES } from '../lib/i18n';
-import { Modal, Field } from './ui';
+import { Modal, Field, Avatar } from './ui';
 import { Languages, Volume2, VolumeX, KeyRound } from 'lucide-react';
 
 // Change your own login PIN — works for the admin (admin PIN) and each worker
@@ -265,10 +265,48 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
 
   return (
     <div className="min-h-full flex">
-      {/* Full-menu drawer, opened from the top ☰ menu. Rendered at root so it is
-          never hidden and overlays everything. */}
+      {/* Desktop sidebar (lg+): menus always visible on the left. */}
+      <aside className="hidden lg:flex w-64 flex-col bg-white border-r border-slate-100 fixed inset-y-0 z-30">
+        <div className="h-14 flex items-center gap-1.5 px-3 border-b border-slate-100">
+          <div className="h-8 w-8 rounded-lg bg-brand-600 grid place-items-center text-white overflow-hidden shrink-0">
+            {logo ? <img src={logo} alt="" className="h-full w-full object-cover" /> : <Zap size={17} fill="white" />}
+          </div>
+          <span className="font-extrabold text-slate-800 truncate flex-1">{brandName}</span>
+          {isAdmin && <NotificationBell attn={pendingAtt} adv={pendingReqs} exp={pendingExp} />}
+          <PreferencesControl />
+          <button onClick={refresh} disabled={refreshing} title="Refresh data" className="p-2 rounded-lg text-slate-500 hover:bg-slate-100 disabled:opacity-50">
+            <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
+          </button>
+        </div>
+        {isAdmin && (
+          <div className="px-3 py-2 border-b border-slate-100"><TodayPlan /></div>
+        )}
+        <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
+          {items.map((n) => (
+            <NavLink key={n.to} to={n.to} end={n.to === '/'}
+              className={({ isActive }) =>
+                `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition ${isActive ? 'bg-brand-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}>
+              <n.icon size={19} />
+              <span>{t(n.label)}</span>
+              {isAdmin && n.to === '/advances' && pendingReqs > 0 && (
+                <span className="ml-auto bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{pendingReqs}</span>
+              )}
+            </NavLink>
+          ))}
+        </nav>
+        <div className="p-3 border-t border-slate-100 flex items-center gap-3">
+          <Avatar name={session?.name || 'U'} size={34} />
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-semibold text-slate-700 truncate">{session?.name}</div>
+            <div className="text-[11px] text-slate-400 capitalize">{session?.role}</div>
+          </div>
+          <button onClick={doLogout} className="p-2 rounded-lg hover:bg-slate-100 text-slate-500" title="Logout"><LogOut size={17} /></button>
+        </div>
+      </aside>
+
+      {/* Full-menu drawer for phone/tablet, opened from the top ☰ menu. */}
       {menuOpen && (
-        <div className="fixed inset-0 z-[60]">
+        <div className="lg:hidden fixed inset-0 z-[60]">
           <div className="absolute inset-0 bg-black/40" onClick={() => setMenuOpen(false)} />
           <div className="absolute left-0 top-0 bottom-0 w-72 max-w-[85%] bg-white shadow-xl flex flex-col">
             <div className="h-14 flex items-center gap-2 px-4 border-b border-slate-100">
@@ -299,9 +337,9 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
       )}
 
       {/* Main */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 lg:ml-64 flex flex-col min-w-0">
         {/* Mobile top bar */}
-        <header className="h-14 flex items-center justify-between px-4 bg-white border-b border-slate-100 sticky top-0 z-30">
+        <header className="lg:hidden h-14 flex items-center justify-between px-4 bg-white border-b border-slate-100 sticky top-0 z-30">
           <button onClick={() => setMenuOpen(true)} className="flex items-center gap-2 min-w-0" title="Menu">
             <div className="h-8 w-8 rounded-lg bg-brand-600 grid place-items-center text-white overflow-hidden shrink-0">
               {logo ? <img src={logo} alt="" className="h-full w-full object-cover" /> : <Zap size={17} fill="white" />}
@@ -326,10 +364,10 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
           </div>
         )}
 
-        <main className="flex-1 p-4 sm:p-6 pb-24 md:pb-6 max-w-6xl w-full mx-auto">{children}</main>
+        <main className="flex-1 p-4 sm:p-6 pb-24 lg:pb-6 max-w-6xl w-full mx-auto">{children}</main>
 
         {/* Mobile bottom nav */}
-        <nav className="md:hidden fixed bottom-0 inset-x-0 bg-white border-t border-slate-100 flex justify-around pb-safe z-30">
+        <nav className="lg:hidden fixed bottom-0 inset-x-0 bg-white border-t border-slate-100 flex justify-around pb-safe z-30">
           {mobileItems.map((n) => (
             <NavLink key={n.to} to={n.to} end={n.to === '/'}
               className={({ isActive }) =>
