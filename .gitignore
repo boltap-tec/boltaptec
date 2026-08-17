@@ -16,6 +16,10 @@ dist-ssr
 .env
 .env.local
 
+# Local data backups (contain employee PII) & built APKs
+backups
+*.apk
+
 # Capacitor / Android
 /android
 /ios

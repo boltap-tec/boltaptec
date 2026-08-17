@@ -137,6 +137,9 @@ alter table settings   add column if not exists today_plan_date    text;
 alter table settings   add column if not exists logo               text;
 alter table settings   add column if not exists delete_password    text;
 alter table settings   add column if not exists quick_menu         jsonb;
+alter table settings   add column if not exists drive_backup_url     text;
+alter table settings   add column if not exists drive_backup_enabled boolean default false;
+alter table settings   add column if not exists last_drive_backup    text;
 
 -- ── Projects module ─────────────────────────────────────────────────────────
 create table if not exists projects (

@@ -100,11 +100,13 @@ export const Attendance: React.FC = () => {
   const rejected = useMemo(() => attendance.filter((a) => a.status === 'rejected').sort(byDateDesc).slice(0, 100), [attendance]);
 
   // The ledger shows confirmed records only (approved self-punches + admin entries).
+  // Sort newest-first BEFORE capping at 200 — otherwise, with data in chronological
+  // order, the cap would drop the most recent days (they sit at the end of the array).
   const rows = useMemo(() => attendance.filter((a) =>
     a.status !== 'pending' && a.status !== 'rejected' &&
     (!filterDate || a.date === filterDate) &&
     (!q || a.employee_name.toLowerCase().includes(q.toLowerCase())),
-  ).slice(0, 200), [attendance, filterDate, q]);
+  ).sort(byDateDesc).slice(0, 200), [attendance, filterDate, q]);
 
   const reject = (a: AttRow) => {
     const reason = prompt(`Reject ${a.employee_name}'s attendance on ${fmtDate(a.date)}?\nOptional reason:`, '');

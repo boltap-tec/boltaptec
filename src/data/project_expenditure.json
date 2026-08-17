@@ -414,44 +414,5 @@
   "remark": null,
   "images": null,
   "source": "admin"
- },
- {
-  "id": "seedlab_1",
-  "project_id": "Subramani Vangapalayam_P1",
-  "project_name": "Subramani Shed window",
-  "date": "2026-04-08",
-  "category_id": "Labour_C1",
-  "category_name": "Labour",
-  "description": "Labour (opening balance from records)",
-  "amount": 13645,
-  "remark": "Historic labour total",
-  "images": null,
-  "source": "admin"
- },
- {
-  "id": "seedlab_2",
-  "project_id": "Subramanian Sheet work_P2",
-  "project_name": "Subramanian Sheet work",
-  "date": "2026-04-10",
-  "category_id": "Labour_C1",
-  "category_name": "Labour",
-  "description": "Labour (opening balance from records)",
-  "amount": 13704,
-  "remark": "Historic labour total",
-  "images": null,
-  "source": "admin"
- },
- {
-  "id": "seedlab_3",
-  "project_id": "LC International_P5",
-  "project_name": "LC International",
-  "date": "2026-04-28",
-  "category_id": "Labour_C1",
-  "category_name": "Labour",
-  "description": "Labour (opening balance from records)",
-  "amount": 4417,
-  "remark": "Historic labour total",
-  "images": null,
-  "source": "admin"
  }
 ]

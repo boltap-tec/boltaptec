@@ -48,10 +48,19 @@ export const buildWorkbook = (d: BackupData): XLSX.WorkBook => {
   return wb;
 };
 
+export const backupFileName = (label = ''): string => {
+  const stamp = new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-');
+  return `BoltAp_Backup${label ? '_' + label.replace(/[^\w-]/g, '') : ''}_${stamp}.xlsx`;
+};
+
 export const downloadBackup = (d: BackupData, label = ''): string => {
   const wb = buildWorkbook(d);
-  const stamp = new Date().toISOString().slice(0, 10);
-  const name = `BoltAp_Backup${label ? '_' + label.replace(/[^\w-]/g, '') : ''}_${stamp}.xlsx`;
+  const name = backupFileName(label);
   XLSX.writeFile(wb, name);
   return name;
 };
+
+// The backup workbook as a base64 string — used to POST it to the Google Drive
+// Apps Script endpoint (which decodes it and writes an .xlsx into the folder).
+export const workbookBase64 = (d: BackupData): string =>
+  XLSX.write(buildWorkbook(d), { bookType: 'xlsx', type: 'base64' }) as string;

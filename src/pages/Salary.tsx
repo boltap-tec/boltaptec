@@ -165,7 +165,13 @@ export const Salary: React.FC = () => {
         <div className="space-y-4">
           {postings.length === 0 ? (
             <Card className="p-6"><EmptyState title="No posted payrolls yet" hint="Generate one from the Generate tab." /></Card>
-          ) : postings.map((p) => {
+          ) : [...postings].sort((a, b) => {
+            // Newest posted payroll on top — the store prepends new ones, but a
+            // cloud reload returns rows unordered, so sort explicitly by post time.
+            const ka = a.created_at || a.to_date || a.from_date || '';
+            const kb = b.created_at || b.to_date || b.from_date || '';
+            return ka < kb ? 1 : ka > kb ? -1 : 0;
+          }).map((p) => {
             const rows = salaryDetails.filter((d) => d.from_date === p.from_date && d.to_date === p.to_date);
             const gross = rows.reduce((s, d) => s + d.salary_amount, 0);
             const paidSum = rows.reduce((s, d) => s + d.salary_given, 0);

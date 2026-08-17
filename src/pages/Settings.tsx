@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
-import { Save, RotateCcw, Database, Building2, CreditCard, Trash2, Info, FileSpreadsheet, Cloud, CloudOff, UploadCloud, DownloadCloud, MapPin, Image as ImageIcon, ScanText, LayoutGrid } from 'lucide-react';
+import { Save, RotateCcw, Database, Building2, CreditCard, Trash2, Info, FileSpreadsheet, Cloud, CloudOff, UploadCloud, DownloadCloud, MapPin, Image as ImageIcon, ScanText, LayoutGrid, HardDrive, AlertTriangle } from 'lucide-react';
 import { useData } from '../store/useData';
 import { usePrefs } from '../store/usePrefs';
-import { Card, Field, Badge } from '../components/ui';
+import { Card, Field, Badge, Modal } from '../components/ui';
 import { isValidVpa } from '../lib/upi';
 import { downloadBackup } from '../lib/backup';
 import { compressImage } from '../lib/image';
-import { cloudEnabled, cloudState, pushAll, pullAll } from '../lib/cloud';
+import { cloudEnabled, cloudState, pushAll, pullAll, wipeAllCloud } from '../lib/cloud';
+import { uploadBackupToDrive, DRIVE_FOLDER_ID } from '../lib/drive';
 
 export const Settings: React.FC = () => {
   const { settings, employees, attendance, ledger, resetAll } = useData();
@@ -18,6 +19,17 @@ export const Settings: React.FC = () => {
   const [saved, setSaved] = useState(false);
   const [cloudMsg, setCloudMsg] = useState('');
   const [busy, setBusy] = useState(false);
+
+  // Google Drive backup
+  const [driveMsg, setDriveMsg] = useState('');
+  const [driveBusy, setDriveBusy] = useState(false);
+  const [driveSaved, setDriveSaved] = useState(false);
+
+  // Wipe-all flow (PIN protected)
+  const [wipeOpen, setWipeOpen] = useState(false);
+  const [wipePin, setWipePin] = useState('');
+  const [wipeErr, setWipeErr] = useState('');
+  const [wiping, setWiping] = useState(false);
   // Bill Scanning is a draft until saved (so choosing the API + key is deliberate).
   const [ocrDraft, setOcrDraft] = useState({ provider: ocrProvider, key: ocrKey });
   const [ocrSaved, setOcrSaved] = useState(false);
@@ -68,11 +80,40 @@ export const Settings: React.FC = () => {
     if (confirm('Reset ALL data back to the original Excel import? This wipes your changes.')) resetAll();
   };
 
-  const wipe = () => {
-    if (confirm('Delete ALL local data permanently? The app will be empty.')) {
-      localStorage.removeItem('boltap-data-v2');
-      location.reload();
+  // Save the Drive backup config (URL + auto toggle) into settings.
+  const saveDrive = () => {
+    const url = (form.drive_backup_url || '').trim();
+    if (url && !/^https:\/\/script\.google(usercontent)?\.com\//.test(url)) {
+      setDriveMsg('⚠️ That URL should start with https://script.google.com/…'); return;
     }
+    useData.setState({ settings: {
+      ...useData.getState().settings,
+      drive_backup_url: url || null,
+      drive_backup_enabled: !!form.drive_backup_enabled,
+    } });
+    setDriveMsg(''); setDriveSaved(true); setTimeout(() => setDriveSaved(false), 1800);
+  };
+
+  const driveBackupNow = async () => {
+    // Persist the latest URL/toggle first so a just-typed URL is used.
+    useData.setState({ settings: {
+      ...useData.getState().settings,
+      drive_backup_url: (form.drive_backup_url || '').trim() || null,
+      drive_backup_enabled: !!form.drive_backup_enabled,
+    } });
+    setDriveBusy(true); setDriveMsg('');
+    const r = await uploadBackupToDrive('manual');
+    setDriveMsg((r.ok ? '✓ ' : '⚠️ ') + r.msg);
+    setDriveBusy(false);
+  };
+
+  // PIN-validated hard wipe: clears cloud (so it can't re-sync) + local storage.
+  const doWipe = async () => {
+    if (wipePin !== settings.admin_pin) { setWipeErr('Wrong admin PIN. Data was NOT deleted.'); return; }
+    setWiping(true); setWipeErr('');
+    try { await wipeAllCloud(); } catch { /* best effort — carry on with local wipe */ }
+    localStorage.removeItem('boltap-data-v2');
+    location.reload();
   };
 
   const backupNow = () => {
@@ -232,8 +273,47 @@ export const Settings: React.FC = () => {
         <button onClick={backupNow} className="btn-success w-full"><FileSpreadsheet size={16} /> Backup All Data now (Excel / Google Sheets)</button>
         <div className="flex flex-col sm:flex-row gap-2">
           <button onClick={reset} className="btn-ghost flex-1"><RotateCcw size={16} /> Reset to Excel Import</button>
-          <button onClick={wipe} className="btn-danger flex-1"><Trash2 size={16} /> Wipe All Data</button>
+          <button onClick={() => { setWipePin(''); setWipeErr(''); setWipeOpen(true); }} className="btn-danger flex-1"><Trash2 size={16} /> Wipe All Data</button>
         </div>
+      </Card>
+
+      <Card className="p-5 space-y-3">
+        <div className="flex items-center justify-between">
+          <h3 className="font-bold text-slate-700 flex items-center gap-2"><HardDrive size={18} className="text-brand-500" /> Google Drive Backup</h3>
+          <Badge tone={settings.drive_backup_enabled && settings.drive_backup_url ? 'green' : 'slate'}>
+            {settings.drive_backup_enabled && settings.drive_backup_url ? 'Auto weekly ON' : 'Off'}
+          </Badge>
+        </div>
+        <p className="text-sm text-slate-500">Automatically saves a full backup (.xlsx) into your shared Drive folder <b>boltap_Vercel_Backup</b> once a week — and any time you tap the button below.</p>
+        <Field label="Apps Script Web-App URL" hint="Paste the /exec URL from your deployed Google Apps Script (see setup steps below).">
+          <input className="input" value={form.drive_backup_url || ''} onChange={(e) => setForm({ ...form, drive_backup_url: e.target.value })} placeholder="https://script.google.com/macros/s/…/exec" autoComplete="off" />
+        </Field>
+        <label className="flex items-start gap-3 rounded-xl border border-slate-200 p-3 cursor-pointer">
+          <input type="checkbox" className="mt-1 h-4 w-4 accent-brand-600" checked={!!form.drive_backup_enabled}
+            onChange={(e) => setForm({ ...form, drive_backup_enabled: e.target.checked })} />
+          <span>
+            <span className="block font-semibold text-slate-700 text-sm">Auto-backup to Drive every week</span>
+            <span className="block text-xs text-slate-400">Runs on app open if 7+ days have passed since the last upload.</span>
+          </span>
+        </label>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <button onClick={saveDrive} className="btn-ghost flex-1">{driveSaved ? '✓ Saved' : <><Save size={16} /> Save Drive Settings</>}</button>
+          <button onClick={driveBackupNow} disabled={driveBusy} className="btn-success flex-1"><HardDrive size={16} /> {driveBusy ? 'Uploading…' : 'Backup to Drive now'}</button>
+        </div>
+        {driveMsg && <div className="text-sm font-semibold text-slate-600">{driveMsg}</div>}
+        {settings.last_drive_backup && (
+          <div className="text-xs text-slate-400">Last Drive backup: {new Date(settings.last_drive_backup).toLocaleString('en-IN')}</div>
+        )}
+        <details className="rounded-xl bg-slate-50 p-3 text-xs text-slate-500">
+          <summary className="font-semibold text-slate-600 cursor-pointer">One-time setup (≈2 min) — how to connect Drive</summary>
+          <ol className="list-decimal ml-4 mt-2 space-y-1">
+            <li>Open <b>script.google.com</b> → <b>New project</b>.</li>
+            <li>Delete the sample code, paste the BoltAp backup script (given to you), and Save.</li>
+            <li>Click <b>Deploy → New deployment → Web app</b>. Set <b>Execute as: Me</b> and <b>Who has access: Anyone</b>. Deploy &amp; authorize.</li>
+            <li>Copy the <b>Web app URL</b> (ends in <code>/exec</code>) and paste it above, then Save.</li>
+            <li>Backups land in folder ID <code>{DRIVE_FOLDER_ID}</code>.</li>
+          </ol>
+        </details>
       </Card>
 
       <Card className="p-5">
@@ -274,6 +354,32 @@ export const Settings: React.FC = () => {
       </Card>
 
       <p className="text-center text-xs text-slate-400 py-2">BoltAp Workforce Manager · v1.0 · Local build</p>
+
+      <Modal open={wipeOpen} onClose={() => !wiping && setWipeOpen(false)} title="Wipe All Data">
+        <div className="space-y-4">
+          <div className="rounded-xl bg-rose-50 text-rose-700 p-3 text-sm flex gap-2">
+            <AlertTriangle size={18} className="shrink-0 mt-0.5" />
+            <div>
+              <b>This permanently deletes everything</b> — {employees.length} employees, {attendance.length} attendance records, {ledger.length} ledger entries, all projects, salaries and settings{cloudEnabled ? ', on this device AND in the cloud' : ''}. This cannot be undone.
+            </div>
+          </div>
+          <p className="text-sm text-slate-500">Consider a <b>Backup</b> or a <b>Drive backup</b> first. To continue, enter the Admin PIN.</p>
+          <Field label="Admin PIN">
+            <input inputMode="numeric" maxLength={4} autoFocus
+              className="input tracking-[0.5em] text-center text-lg"
+              value={wipePin}
+              onChange={(e) => { setWipePin(e.target.value.replace(/\D/g, '')); setWipeErr(''); }}
+              placeholder="••••" />
+          </Field>
+          {wipeErr && <div className="text-sm font-semibold text-rose-600">{wipeErr}</div>}
+          <div className="flex gap-2 pt-1">
+            <button onClick={() => setWipeOpen(false)} disabled={wiping} className="btn-ghost flex-1">Cancel</button>
+            <button onClick={doWipe} disabled={wiping || wipePin.length !== 4} className="btn-danger flex-1">
+              <Trash2 size={16} /> {wiping ? 'Wiping…' : 'Delete Everything'}
+            </button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

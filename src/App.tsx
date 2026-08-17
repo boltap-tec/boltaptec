@@ -5,6 +5,7 @@ import { useAuth } from './store/useAuth';
 import { usePrefs } from './store/usePrefs';
 import { tick } from './lib/alarm';
 import { initCloud, cloudEnabled } from './lib/cloud';
+import { maybeWeeklyBackup } from './lib/drive';
 import { Layout } from './components/Layout';
 import { Login } from './pages/Login';
 import { Dashboard } from './pages/Dashboard';
@@ -34,9 +35,13 @@ export default function App() {
   const [ready, setReady] = useState(!cloudEnabled);
 
   useEffect(() => {
-    if (!cloudEnabled) return;
     let alive = true;
-    initCloud().finally(() => { if (alive) setReady(true); });
+    const done = () => { if (alive) setReady(true); };
+    // Bring the cloud in first (if configured) so the weekly backup captures the
+    // freshest data, then run the once-a-week Drive backup check in the background.
+    (cloudEnabled ? initCloud() : Promise.resolve())
+      .finally(done)
+      .then(() => { void maybeWeeklyBackup(); });
     return () => { alive = false; };
   }, []);
 

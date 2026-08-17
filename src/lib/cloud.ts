@@ -47,6 +47,26 @@ async function upsertRows(table: string, rows: AnyRow[], key: string): Promise<v
   }
 }
 
+// Upsert the single settings row, healing over columns the cloud table doesn't
+// have yet (e.g. drive_backup_url before schema.sql is re-run) so a new field
+// never blocks the rest of settings from syncing.
+async function upsertSettings(settings: AnyRow): Promise<void> {
+  let payload: AnyRow = { id: 1, ...settings };
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const { error } = await supabase!.from('settings').upsert(payload, { onConflict: 'id' });
+    if (!error) return;
+    const m = /Could not find the '(\w+)' column/.exec(error.message || '');
+    if (m && m[1]) {
+      const col = m[1];
+      const { [col]: _omit, ...rest } = payload; void _omit;
+      payload = rest;
+      console.warn(`[cloud] settings: '${col}' column not in cloud yet — syncing without it (run schema.sql to keep it)`);
+      continue;
+    }
+    throw error;
+  }
+}
+
 async function fetchAll() {
   const out: Record<string, any[]> = {};
   const present = new Set<string>();
@@ -72,7 +92,23 @@ export async function pushAll() {
       catch (e: any) { console.warn('[cloud] pushAll skipped', t.table, e?.message || e); }
     }
   }
-  await supabase!.from('settings').upsert({ id: 1, ...st.settings }, { onConflict: 'id' });
+  await upsertSettings(st.settings);
+}
+
+// Delete EVERY row from every cloud table (and the settings row). Used by the
+// "Wipe All Data" action so a hard reset doesn't get re-hydrated from the cloud
+// on the next load. Best-effort: skips tables that don't exist yet.
+export async function wipeAllCloud(): Promise<void> {
+  if (!cloudEnabled || !supabase) return;
+  for (const t of TABLES) {
+    // `.not(key,'is',null)` matches every row regardless of the key's type.
+    const { error } = await supabase.from(t.table).delete().not(t.key, 'is', null);
+    if (error) console.warn('[cloud] wipe skipped for', t.table, error.message);
+  }
+  const { error } = await supabase.from('settings').delete().eq('id', 1);
+  if (error) console.warn('[cloud] wipe skipped for settings', error.message);
+  // Reset the diff baseline so the wiped state isn't seen as "local changes to push".
+  prev = snapshot();
 }
 
 // Merge cloud state into the local store. Skips tables that don't exist yet and
@@ -149,7 +185,7 @@ async function flush() {
   }
   try {
     if (JSON.stringify(prev.settings) !== JSON.stringify(next.settings)) {
-      await supabase!.from('settings').upsert({ id: 1, ...next.settings }, { onConflict: 'id' });
+      await upsertSettings(next.settings);
     }
   } catch (e: any) { console.warn('[cloud] settings sync skipped', e?.message || e); }
   prev = next;

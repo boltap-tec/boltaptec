@@ -232,4 +232,9 @@ export interface Settings {
   today_project_name?: string | null;
   today_plan_date?: string | null;     // the date the plan was set for
   quick_menu?: string[];               // routes shown in the mobile bottom quick-nav
+  // Google Drive backup (via a Google Apps Script web-app that saves into the
+  // shared Drive folder — see lib/drive.ts). No Google Cloud project needed.
+  drive_backup_url?: string | null;    // the deployed Apps Script /exec URL
+  drive_backup_enabled?: boolean;      // auto-upload a backup once a week
+  last_drive_backup?: string | null;   // ISO timestamp of the last successful upload
 }

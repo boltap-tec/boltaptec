@@ -150,4 +150,9 @@ export const defaultSettings = (): Settings => ({
   location_required: false,
   delete_password: '1234',
   quick_menu: ['/', '/employees', '/attendance', '/projects', '/project-expense'],
+  // Pre-wired to the deployed Apps Script that saves into the boltap_Vercel_Backup
+  // Drive folder, so a fresh install auto-backs-up weekly with no setup.
+  drive_backup_url: 'https://script.google.com/macros/s/AKfycbwrCFej4RY0z1JogihkPU1txw-H5-r-x2Vhj0caVYqEfZitjyVA-P4mqA-IGjJyEaPeVw/exec',
+  drive_backup_enabled: true,
+  last_drive_backup: null,
 });

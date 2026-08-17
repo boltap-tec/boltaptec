@@ -14,7 +14,8 @@
   "approximate_amount": 0,
   "amount_quoted": 17500,
   "discount": null,
-  "status": "Running"
+  "status": "Running",
+  "images": null
  },
  {
   "project_id": "Subramanian Sheet work_P2",
@@ -31,7 +32,8 @@
   "approximate_amount": 302400,
   "amount_quoted": 15000,
   "discount": null,
-  "status": "Running"
+  "status": "Running",
+  "images": null
  },
  {
   "project_id": "Car parking_P3",
@@ -48,7 +50,8 @@
   "approximate_amount": 0,
   "amount_quoted": 30000,
   "discount": null,
-  "status": "Running"
+  "status": "Running",
+  "images": null
  },
  {
   "project_id": "Guduguduthanur shed work_P2",
@@ -65,7 +68,8 @@
   "approximate_amount": 13800,
   "amount_quoted": 14000,
   "discount": null,
-  "status": "Running"
+  "status": "Running",
+  "images": null
  },
  {
   "project_id": "NSP Coco Pit_P3",
@@ -82,7 +86,8 @@
   "approximate_amount": 0,
   "amount_quoted": 114000,
   "discount": null,
-  "status": "Running"
+  "status": "Running",
+  "images": null
  },
  {
   "project_id": "LC International other work_P4",
@@ -99,7 +104,8 @@
   "approximate_amount": 0,
   "amount_quoted": 8000,
   "discount": null,
-  "status": "Completed"
+  "status": "Completed",
+  "images": null
  },
  {
   "project_id": "LC International_P5",
@@ -116,6 +122,7 @@
   "approximate_amount": 0,
   "amount_quoted": 13000,
   "discount": null,
-  "status": "Running"
+  "status": "Running",
+  "images": null
  }
 ]
