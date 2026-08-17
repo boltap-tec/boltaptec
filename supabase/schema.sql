@@ -136,6 +136,7 @@ alter table settings   add column if not exists today_project_name text;
 alter table settings   add column if not exists today_plan_date    text;
 alter table settings   add column if not exists logo               text;
 alter table settings   add column if not exists delete_password    text;
+alter table settings   add column if not exists quick_menu         jsonb;
 
 -- ── Projects module ─────────────────────────────────────────────────────────
 create table if not exists projects (

@@ -231,4 +231,5 @@ export interface Settings {
   today_project_id?: string | null;    // "Today's Plan" — default project for attendance/expense
   today_project_name?: string | null;
   today_plan_date?: string | null;     // the date the plan was set for
+  quick_menu?: string[];               // routes shown in the mobile bottom quick-nav
 }

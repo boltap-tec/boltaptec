@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Save, RotateCcw, Database, Building2, CreditCard, Trash2, Info, FileSpreadsheet, Cloud, CloudOff, UploadCloud, DownloadCloud, MapPin, Image as ImageIcon, ScanText } from 'lucide-react';
+import { Save, RotateCcw, Database, Building2, CreditCard, Trash2, Info, FileSpreadsheet, Cloud, CloudOff, UploadCloud, DownloadCloud, MapPin, Image as ImageIcon, ScanText, LayoutGrid } from 'lucide-react';
 import { useData } from '../store/useData';
 import { usePrefs } from '../store/usePrefs';
 import { Card, Field, Badge } from '../components/ui';
@@ -11,7 +11,10 @@ import { cloudEnabled, cloudState, pushAll, pullAll } from '../lib/cloud';
 export const Settings: React.FC = () => {
   const { settings, employees, attendance, ledger, resetAll } = useData();
   const { ocrKey, setOcrKey, ocrProvider, setOcrProvider } = usePrefs();
-  const [form, setForm] = useState(settings);
+  const [form, setForm] = useState({
+    ...settings,
+    quick_menu: settings.quick_menu?.length ? settings.quick_menu : ['/', '/employees', '/attendance', '/projects', '/project-expense'],
+  });
   const [saved, setSaved] = useState(false);
   const [cloudMsg, setCloudMsg] = useState('');
   const [busy, setBusy] = useState(false);
@@ -22,6 +25,17 @@ export const Settings: React.FC = () => {
     setOcrProvider(ocrDraft.provider);
     setOcrKey(ocrDraft.key.trim());
     setOcrSaved(true); setTimeout(() => setOcrSaved(false), 1800);
+  };
+
+  // Quick menu (phone bottom bar) configuration.
+  const [quickSaved, setQuickSaved] = useState(false);
+  const toggleQuick = (to: string) => setForm((f) => {
+    const cur = f.quick_menu || [];
+    return { ...f, quick_menu: cur.includes(to) ? cur.filter((x) => x !== to) : [...cur, to] };
+  });
+  const saveQuick = () => {
+    useData.setState({ settings: { ...useData.getState().settings, quick_menu: form.quick_menu } });
+    setQuickSaved(true); setTimeout(() => setQuickSaved(false), 1800);
   };
 
   const cloudPush = async () => {
@@ -240,7 +254,38 @@ export const Settings: React.FC = () => {
         </div>
       </Card>
 
+      <Card className="p-5 space-y-3">
+        <h3 className="font-bold text-slate-700 flex items-center gap-2"><LayoutGrid size={18} className="text-brand-500" /> Quick Menu (phone bottom bar)</h3>
+        <p className="text-sm text-slate-500">Choose which menus show in the bottom quick bar on phones — pick up to 5. (On the web, all menus are in the top ☰ menu.)</p>
+        <div className="grid grid-cols-2 gap-2">
+          {ADMIN_MENUS.map((m) => {
+            const sel = (form.quick_menu || []).includes(m.to);
+            return (
+              <button key={m.to} onClick={() => toggleQuick(m.to)}
+                className={`flex items-center gap-2 p-2.5 rounded-xl border text-left text-sm transition ${sel ? 'border-brand-500 bg-brand-50' : 'border-slate-200 hover:border-slate-300'}`}>
+                <div className={`h-4 w-4 rounded-md border-2 shrink-0 ${sel ? 'bg-brand-600 border-brand-600' : 'border-slate-300'}`} />
+                <span className="font-semibold text-slate-700 truncate">{m.label}</span>
+              </button>
+            );
+          })}
+        </div>
+        <div className="text-xs text-slate-400">{(form.quick_menu || []).length} selected {(form.quick_menu || []).length > 5 ? '· more than 5 may look crowded' : ''}</div>
+        <button onClick={saveQuick} className="btn-primary w-full">{quickSaved ? '✓ Quick menu saved' : <><Save size={16} /> Save Quick Menu</>}</button>
+      </Card>
+
       <p className="text-center text-xs text-slate-400 py-2">BoltAp Workforce Manager · v1.0 · Local build</p>
     </div>
   );
 };
+
+const ADMIN_MENUS = [
+  { to: '/', label: 'Dashboard' },
+  { to: '/employees', label: 'Employees' },
+  { to: '/attendance', label: 'Attendance' },
+  { to: '/projects', label: 'Projects' },
+  { to: '/project-expense', label: 'Project Expense' },
+  { to: '/salary', label: 'Salary' },
+  { to: '/advances', label: 'Advances' },
+  { to: '/ledger', label: 'Ledger' },
+  { to: '/settings', label: 'Settings' },
+];

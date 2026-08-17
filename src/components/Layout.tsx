@@ -187,7 +187,9 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   }, [totalAlerts, isAdmin]);
 
   const items = isAdmin ? adminNav : workerNav;
-  const mobileItems = isAdmin ? items.slice(0, 5) : items;
+  const quickMenu = useData((s) => s.settings.quick_menu);
+  const quickPaths = isAdmin && quickMenu && quickMenu.length ? quickMenu : items.slice(0, 5).map((n) => n.to);
+  const mobileItems = isAdmin ? items.filter((n) => quickPaths.includes(n.to)) : items;
 
   const [refreshing, setRefreshing] = React.useState(false);
   const [menuOpen, setMenuOpen] = React.useState(false);

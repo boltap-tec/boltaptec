@@ -149,4 +149,5 @@ export const defaultSettings = (): Settings => ({
   week_start: 6, // Saturday, matching the sample data
   location_required: false,
   delete_password: '1234',
+  quick_menu: ['/', '/employees', '/attendance', '/projects', '/project-expense'],
 });
