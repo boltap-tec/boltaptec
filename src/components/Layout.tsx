@@ -11,11 +11,59 @@ import { beep } from '../lib/alarm';
 import { today } from '../lib/format';
 import { usePrefs } from '../store/usePrefs';
 import { useT, LANGUAGES } from '../lib/i18n';
-import { Languages, Volume2, VolumeX } from 'lucide-react';
+import { Modal, Field } from './ui';
+import { Languages, Volume2, VolumeX, KeyRound } from 'lucide-react';
+
+// Change your own login PIN — works for the admin (admin PIN) and each worker
+// (their own PIN). Available to everyone from the Preferences menu.
+const ChangePinModal: React.FC<{ open: boolean; onClose: () => void }> = ({ open, onClose }) => {
+  const session = useAuth((s) => s.session);
+  const settings = useData((s) => s.settings);
+  const employees = useData((s) => s.employees);
+  const updateEmployee = useData((s) => s.updateEmployee);
+  const isAdmin = session?.role === 'admin';
+  const emp = employees.find((e) => e.employee_id === session?.employee_id);
+  const [cur, setCur] = React.useState('');
+  const [next, setNext] = React.useState('');
+  const [conf, setConf] = React.useState('');
+  const [err, setErr] = React.useState('');
+  const [ok, setOk] = React.useState(false);
+  const reset = () => { setCur(''); setNext(''); setConf(''); setErr(''); setOk(false); };
+  const save = () => {
+    const currentPin = isAdmin ? (settings.admin_pin || '1234') : (emp?.pin || '');
+    if (cur !== currentPin) { setErr('Current PIN is wrong.'); return; }
+    if (!/^\d{4}$/.test(next)) { setErr('New PIN must be exactly 4 digits.'); return; }
+    if (next !== conf) { setErr("New PINs don't match."); return; }
+    if (isAdmin) useData.setState({ settings: { ...useData.getState().settings, admin_pin: next } });
+    else if (emp) updateEmployee(emp.employee_id, { pin: next });
+    setErr(''); setOk(true);
+    setTimeout(() => { reset(); onClose(); }, 1100);
+  };
+  const pinInput = (val: string, set: (v: string) => void, ph: string) => (
+    <input type="password" inputMode="numeric" maxLength={4} className="input tracking-[0.5em] text-center text-lg"
+      value={val} onChange={(e) => { set(e.target.value.replace(/\D/g, '')); setErr(''); }} placeholder={ph} autoComplete="off" />
+  );
+  return (
+    <Modal open={open} onClose={() => { reset(); onClose(); }} title="Change PIN">
+      <div className="space-y-3">
+        <div className="text-sm text-slate-500">{isAdmin ? 'Change the Admin login PIN.' : `Change your login PIN, ${emp?.name || ''}.`}</div>
+        <Field label="Current PIN">{pinInput(cur, setCur, '••••')}</Field>
+        <Field label="New PIN (4 digits)">{pinInput(next, setNext, '••••')}</Field>
+        <Field label="Confirm New PIN">{pinInput(conf, setConf, '••••')}</Field>
+        {err && <p className="text-rose-500 text-sm font-semibold">{err}</p>}
+        <div className="flex gap-2 pt-1">
+          <button onClick={() => { reset(); onClose(); }} className="btn-ghost flex-1">Cancel</button>
+          <button onClick={save} disabled={!cur || !next || !conf} className="btn-primary flex-1">{ok ? '✓ PIN changed' : 'Save PIN'}</button>
+        </div>
+      </div>
+    </Modal>
+  );
+};
 
 // Per-user Preferences: language + sounds. Saved on this device only.
 const PreferencesControl: React.FC = () => {
   const [open, setOpen] = React.useState(false);
+  const [pinOpen, setPinOpen] = React.useState(false);
   const { lang, sound, setLang, setSound } = usePrefs();
   const t = useT();
   return (
@@ -45,10 +93,15 @@ const PreferencesControl: React.FC = () => {
                   {sound ? <Volume2 size={16} /> : <VolumeX size={16} />} {sound ? t('pref.on') : t('pref.off')}
                 </button>
               </div>
+              <button onClick={() => { setOpen(false); setPinOpen(true); }}
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200">
+                <KeyRound size={15} /> Change PIN
+              </button>
             </div>
           </div>
         </>
       )}
+      <ChangePinModal open={pinOpen} onClose={() => setPinOpen(false)} />
     </div>
   );
 };
