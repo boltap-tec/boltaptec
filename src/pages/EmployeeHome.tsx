@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Wallet, HandCoins, TrendingDown, Clock, Send, Banknote, Smartphone,
   ArrowRight, CheckCircle2, XCircle, Sparkles, CalendarDays,
-  LogIn, LogOut, Camera, Fingerprint, FileDown, MapPin, Receipt,
+  LogIn, LogOut, Camera, Fingerprint, FileDown, MapPin, Receipt, KeyRound,
 } from 'lucide-react';
 import { useAuth } from '../store/useAuth';
 import { useData } from '../store/useData';
@@ -15,6 +15,7 @@ import { compressImage } from '../lib/image';
 import { sharePayslip } from '../lib/payslip';
 import { getLocation } from '../lib/geo';
 import { useT } from '../lib/i18n';
+import { ChangePinModal } from '../components/ChangePinModal';
 
 export const EmployeeHome: React.FC = () => {
   const { session } = useAuth();
@@ -29,6 +30,7 @@ export const EmployeeHome: React.FC = () => {
   const [method, setMethod] = useState<'UPI' | 'Cash'>('UPI');
   const [msg, setMsg] = useState('');
   const [locating, setLocating] = useState(false);
+  const [pinOpen, setPinOpen] = useState(false);
   const deviceId = getDeviceId();
 
   const myLedger = useMemo(() => ledger.filter((l) => l.employee_id === emp?.employee_id), [ledger, emp]);
@@ -272,7 +274,10 @@ export const EmployeeHome: React.FC = () => {
       <div className="grid grid-cols-2 gap-2">
         <button onClick={() => sharePayslip(emp, ledger, settings)} className="btn-primary"><FileDown size={16} /> My Payslip PDF</button>
         <button onClick={() => navigate('/my-history')} className="btn-ghost">Full history <ArrowRight size={16} /></button>
+        <button onClick={() => setPinOpen(true)} className="btn-ghost col-span-2"><KeyRound size={16} /> Change my PIN</button>
       </div>
+
+      <ChangePinModal open={pinOpen} onClose={() => setPinOpen(false)} />
 
       {/* Request modal */}
       <Modal open={reqOpen} onClose={() => setReqOpen(false)} title="Request an Advance">
