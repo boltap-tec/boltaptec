@@ -114,11 +114,14 @@ async function ocrSpace(dataUrl: string, mime: string): Promise<string> {
     if (res.status === 403 || res.status === 429) throw new Error('OCR limit reached.' + (usingShared ? addKeyHint : ''));
     throw new Error(`OCR service error (${res.status}).`);
   }
+  const text = (data.ParsedResults || []).map((r: any) => r.ParsedText || '').join('\n').trim();
   if (data.IsErroredOnProcessing) {
     const m = Array.isArray(data.ErrorMessage) ? data.ErrorMessage.join(' ') : (data.ErrorMessage || 'OCR failed');
-    throw new Error(m + (usingShared && /rate|limit|timed|expired|invalid|key/i.test(m) ? addKeyHint : ''));
+    // A page-limit warning still returns the parsed pages — use them (the item
+    // table is almost always on page 1). Only throw if we truly got nothing.
+    if (text) { console.warn('[ocr] partial:', m); return text; }
+    throw new Error(m + (usingShared && /rate|limit|timed|expired|invalid|key|page/i.test(m) ? addKeyHint : ''));
   }
-  const text = (data.ParsedResults || []).map((r: any) => r.ParsedText || '').join('\n').trim();
   if (!text) {
     const perr = data.ParsedResults?.[0]?.ErrorMessage;
     throw new Error((perr || 'No text was returned by the OCR service.') + (usingShared ? addKeyHint : ' Try a clearer photo.'));

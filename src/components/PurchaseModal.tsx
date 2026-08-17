@@ -4,7 +4,7 @@ import { useData } from '../store/useData';
 import { Modal, Field } from './ui';
 import { inr, today } from '../lib/format';
 import { compressImage } from '../lib/image';
-import { parseTable, guessMapping, toItems, itemsTotal, type StdField } from '../lib/purchase';
+import { parseTable, guessMapping, toItems, itemsTotal, detectGst, type StdField } from '../lib/purchase';
 import { ocrFile, ocrMindee, fileToDataUrl, ocrReady } from '../lib/ocr';
 import { usePrefs } from '../store/usePrefs';
 import type { Project, PurchaseItem } from '../types';
@@ -54,6 +54,14 @@ export const PurchaseModal: React.FC<{ open: boolean; project: Project; onClose:
     // Default the range to a plausible item block: skip the first header line.
     setFromRow(rows.length > 1 ? 2 : 1);
     setToRow(rows.length);
+    // Best-effort pre-fill of the GST totals from the bill text (you can edit).
+    const g = detectGst(text);
+    if (g.cgst || g.sgst || g.igst) {
+      setGstMode('amount');
+      setCgst(g.cgst ? String(g.cgst) : '');
+      setSgst(g.sgst ? String(g.sgst) : '');
+      setIgst(g.igst ? String(g.igst) : '');
+    }
   };
 
   const importRows = () => {

@@ -62,3 +62,19 @@ export function toItems(rows: string[][], map: Record<StdField, number>, skipHea
 }
 
 export const itemsTotal = (items: PurchaseItem[]): number => items.reduce((s, it) => s + (it.amount || 0), 0);
+
+// Best-effort read of the CGST/SGST/IGST total from a bill's text. Looks for the
+// summary line ("CGST 5,555.50" / "CGST @ 9% 2,159.91") — a value with 2 decimals
+// on the same line as the label — and takes the largest such match per tax.
+export function detectGst(text: string): { cgst: number; sgst: number; igst: number } {
+  const grab = (label: string): number => {
+    let best = 0;
+    const re = new RegExp(`${label}\\b[^\\n]*?([0-9][0-9,]*\\.[0-9]{2})`, 'gi');
+    for (const m of text.matchAll(re)) {
+      const v = Number(m[1].replace(/,/g, '')) || 0;
+      if (v > best) best = v;   // the total is larger than any per-HSN split
+    }
+    return best;
+  };
+  return { cgst: grab('CGST'), sgst: grab('SGST'), igst: grab('IGST') };
+}
