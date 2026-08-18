@@ -1,7 +1,7 @@
 import React from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { Smartphone, Copy, Check, Info, Phone, IndianRupee } from 'lucide-react';
-import { buildUpiLink, buildGpayLink, isValidVpa } from '../lib/upi';
+import { buildUpiLink, buildGpayLink, buildPaytmLink, buildPhonePeLink, isValidVpa } from '../lib/upi';
 import { inr } from '../lib/format';
 
 // Shown after an advance/salary is recorded. Some banks block app-initiated UPI
@@ -12,8 +12,11 @@ export const UpiPay: React.FC<{ vpa: string; name: string; amount: number; note?
 }) => {
   const [copied, setCopied] = React.useState<'' | 'vpa' | 'phone' | 'amount'>('');
   const valid = isValidVpa(vpa);
-  const upi = buildUpiLink({ vpa, name, amount, note });
-  const gpay = buildGpayLink({ vpa, name, amount, note });
+  const p = { vpa, name, amount, note };
+  const upi = buildUpiLink(p);
+  const gpay = buildGpayLink(p);
+  const paytm = buildPaytmLink(p);
+  const phonepe = buildPhonePeLink(p);
   const isSalary = note?.toLowerCase().includes('salary');
 
   const copy = (what: 'vpa' | 'phone' | 'amount', value: string) => {
@@ -49,11 +52,13 @@ export const UpiPay: React.FC<{ vpa: string; name: string; amount: number; note?
       {/* Try the in-app deep link (works only if the bank allows app-initiated UPI) */}
       {valid && (
         <div className="mt-3">
-          <div className="text-[11px] text-slate-400 text-center mb-1.5">— or try opening the app directly —</div>
-          <div className="grid grid-cols-2 gap-2">
-            <button onClick={() => { window.location.href = gpay; }} className="btn-success text-sm"><Smartphone size={16} /> GPay</button>
-            <button onClick={() => { window.location.href = upi; }} className="btn-primary text-sm"><Smartphone size={16} /> UPI App</button>
+          <div className="text-[11px] text-slate-400 text-center mb-1.5">— or try opening an app directly (see which your bank allows) —</div>
+          <div className="grid grid-cols-3 gap-2">
+            <button onClick={() => { window.location.href = paytm; }} className="btn-primary text-xs px-2"><Smartphone size={14} /> Paytm</button>
+            <button onClick={() => { window.location.href = phonepe; }} className="btn-primary text-xs px-2 bg-indigo-600 hover:bg-indigo-700"><Smartphone size={14} /> PhonePe</button>
+            <button onClick={() => { window.location.href = gpay; }} className="btn-success text-xs px-2"><Smartphone size={14} /> GPay</button>
           </div>
+          <button onClick={() => { window.location.href = upi; }} className="btn-ghost w-full text-xs mt-2"><Smartphone size={14} /> Any UPI app (chooser)</button>
           <div className="bg-white p-2.5 rounded-xl inline-block shadow-sm mx-auto mt-2 w-fit block">
             <QRCodeCanvas value={upi} size={116} level="M" />
           </div>

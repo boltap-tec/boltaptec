@@ -18,9 +18,15 @@ export const buildUpiLink = ({ vpa, name, amount, note }: UpiParams): string => 
   return `upi://pay?${p.toString()}`;
 };
 
-// GPay-specific intent (falls back to generic upi:// on most devices)
+// App-specific intents (fall back to generic upi:// on most devices).
 export const buildGpayLink = (params: UpiParams): string =>
   buildUpiLink(params).replace('upi://pay', 'tez://upi/pay');
+
+export const buildPaytmLink = (params: UpiParams): string =>
+  buildUpiLink(params).replace('upi://pay', 'paytmmp://pay');
+
+export const buildPhonePeLink = (params: UpiParams): string =>
+  buildUpiLink(params).replace('upi://pay', 'phonepe://pay');
 
 export const isValidVpa = (vpa: string): boolean =>
   /^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z]{2,64}$/.test(vpa.trim());
