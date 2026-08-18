@@ -7,7 +7,7 @@ import {
 import { useData } from '../store/useData';
 import { Card, Avatar, Badge, Modal, Field, StatCard, EmptyState, StatusDot } from '../components/ui';
 import { UpiPay } from '../components/UpiPay';
-import { inr, fmtDate, today } from '../lib/format';
+import { inr, fmtDate, today, isGpaySent, displayRemark } from '../lib/format';
 import { advancePending } from '../lib/calc';
 import { shortDeviceId } from '../lib/device';
 
@@ -148,8 +148,11 @@ export const EmployeeDetail: React.FC = () => {
                 return (
                   <div key={l.id} className="flex items-center gap-3 py-2.5 group">
                     <div className="flex-1 min-w-0">
-                      <Badge tone={tone as any}>{l.category.replace(/_/g, ' ')}</Badge>
-                      <div className="text-xs text-slate-400 mt-1">{fmtDate(l.date)} · {l.method || 'Cash'}{l.remark ? ` · ${l.remark}` : ''}</div>
+                      <div className="flex items-center gap-1.5">
+                        <Badge tone={tone as any}>{l.category.replace(/_/g, ' ')}</Badge>
+                        {isGpaySent(l.remark) && <Badge tone="green">Sent via GPay ✓</Badge>}
+                      </div>
+                      <div className="text-xs text-slate-400 mt-1">{fmtDate(l.date)} · {l.method || 'Cash'}{displayRemark(l.remark) ? ` · ${displayRemark(l.remark)}` : ''}</div>
                     </div>
                     <span className="text-sm font-bold text-slate-700">{inr(amt)}</span>
                     <button onClick={() => { if (confirm(`Delete this ${l.category.replace(/_/g, ' ')} of ${inr(amt)}? This reverses the balance.`)) deleteLedgerEntry(l.id); }}

@@ -39,6 +39,13 @@ export const shortName = (fullId: string, fallback?: string): string =>
 export const initials = (name: string): string =>
   name.split(/[\s_]+/).filter(Boolean).slice(0, 2).map(w => w[0]?.toUpperCase()).join('');
 
+// "Paid outside the app via GPay" is stored as a marker in the ledger remark,
+// so it needs no new DB column and syncs to Supabase like any other change.
+export const GPAY_SENT = '✓GPay';
+export const isGpaySent = (remark?: string | null): boolean => (remark || '').includes(GPAY_SENT);
+export const displayRemark = (remark?: string | null): string =>
+  (remark || '').replace(GPAY_SENT, '').replace(/^[\s·|]+|[\s·|]+$/g, '').trim();
+
 // Current time as "3:43 pm"
 export const nowClock = (): string =>
   new Date().toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit', hour12: true }).toLowerCase();

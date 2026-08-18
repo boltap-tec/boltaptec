@@ -11,7 +11,7 @@ import {
   seedProjects, seedExpenditureCategories, seedProjectExpenditure, seedProjectPayments,
 } from '../lib/seed';
 import { advancePending, hourlyRate, computeAttendanceSalary, hoursBetween } from '../lib/calc';
-import { uid, today, fmtDate } from '../lib/format';
+import { uid, today, fmtDate, displayRemark, GPAY_SENT } from '../lib/format';
 
 interface DataState {
   employees: Employee[];
@@ -64,6 +64,7 @@ interface DataState {
   giveAdvance: (employeeId: string, amount: number, method: 'Cash' | 'UPI', note?: string, weeklyRecovery?: number, date?: string) => void;
   recoverAdvance: (employeeId: string, amount: number, note?: string, date?: string) => void;
   deleteLedgerEntry: (id: string) => void;
+  setLedgerSent: (id: string, sent: boolean) => void;
 
   // advance requests
   createRequest: (r: Omit<AdvanceRequest, 'id' | 'status' | 'created_at' | 'decided_at' | 'decided_by' | 'admin_note'>) => void;
@@ -411,6 +412,17 @@ export const useData = create<DataState>()(
         }
         set({ ledger: get().ledger.filter((x) => x.id !== id) });
       },
+
+      // Toggle the "paid outside app via GPay" confirmation marker on a ledger row.
+      setLedgerSent: (id, sent) =>
+        set({
+          ledger: get().ledger.map((l) => {
+            if (l.id !== id) return l;
+            const base = displayRemark(l.remark);
+            const remark = sent ? (base ? `${base} · ${GPAY_SENT}` : GPAY_SENT) : (base || null);
+            return { ...l, remark };
+          }),
+        }),
 
       createRequest: (r) =>
         set({

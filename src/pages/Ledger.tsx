@@ -1,8 +1,8 @@
 import React, { useState, useMemo } from 'react';
-import { BookOpen, Search, Download, HandCoins, Banknote, TrendingDown, Trash2 } from 'lucide-react';
+import { BookOpen, Search, Download, HandCoins, Banknote, TrendingDown, Trash2, CheckCircle2, Send } from 'lucide-react';
 import { useData } from '../store/useData';
 import { Card, Avatar, Badge, EmptyState } from '../components/ui';
-import { inr, fmtDate } from '../lib/format';
+import { inr, fmtDate, isGpaySent, displayRemark } from '../lib/format';
 import type { LedgerCategory } from '../types';
 
 const catMeta: Record<LedgerCategory, { tone: any; icon: React.ReactNode; label: string }> = {
@@ -12,7 +12,7 @@ const catMeta: Record<LedgerCategory, { tone: any; icon: React.ReactNode; label:
 };
 
 export const Ledger: React.FC = () => {
-  const { ledger, deleteLedgerEntry } = useData();
+  const { ledger, deleteLedgerEntry, setLedgerSent } = useData();
 
   const removeEntry = (l: any) => {
     const amt = l.total_amount_given || l.salary_payment_amount || l.advance_payment || l.advance_recovery || 0;
@@ -84,15 +84,28 @@ export const Ledger: React.FC = () => {
           {rows.slice(0, 300).map((l) => {
             const m = catMeta[l.category];
             const amt = l.total_amount_given || l.salary_payment_amount || l.advance_payment || l.advance_recovery || 0;
+            const sent = isGpaySent(l.remark);
+            const rem = displayRemark(l.remark);
+            const isPayout = l.category !== 'Advance_Recovery'; // recovery isn't money you send out
             return (
               <div key={l.id} className="flex items-center gap-3 p-3">
                 <Avatar name={l.employee_name} size={36} />
                 <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-slate-700">{l.employee_name}</div>
-                  <div className="text-xs text-slate-400">{fmtDate(l.date)} · {l.method || 'Cash'}{l.remark ? ` · ${l.remark}` : ''}</div>
+                  <div className="text-sm font-semibold text-slate-700 flex items-center gap-1.5">
+                    {l.employee_name}
+                    {sent && <Badge tone="green"><CheckCircle2 size={11} /> Sent via GPay</Badge>}
+                  </div>
+                  <div className="text-xs text-slate-400">{fmtDate(l.date)} · {l.method || 'Cash'}{rem ? ` · ${rem}` : ''}</div>
                 </div>
                 <Badge tone={m.tone}>{m.icon} {m.label}</Badge>
                 <span className={`text-sm font-bold w-24 text-right ${l.category === 'Advance_Recovery' ? 'text-sky-600' : l.category === 'Salary' ? 'text-emerald-600' : 'text-amber-600'}`}>{inr(amt)}</span>
+                {isPayout && (
+                  <button onClick={() => setLedgerSent(l.id, !sent)}
+                    className={`p-1.5 rounded-lg ${sent ? 'text-emerald-500 hover:bg-emerald-50' : 'text-slate-300 hover:bg-slate-100 hover:text-emerald-500'}`}
+                    title={sent ? 'Sent via GPay — tap to unmark' : 'Mark as paid via GPay'}>
+                    {sent ? <CheckCircle2 size={16} /> : <Send size={15} />}
+                  </button>
+                )}
                 <button onClick={() => removeEntry(l)} className="p-1.5 rounded-lg text-rose-300 hover:bg-rose-50 hover:text-rose-500" title="Delete transaction"><Trash2 size={15} /></button>
               </div>
             );
