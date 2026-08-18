@@ -7,14 +7,24 @@ import { inr } from '../lib/format';
 // UPI apps flag payments auto-launched from another app as a "security risk", so
 // the reliable path is: pay the worker's NUMBER manually in any UPI app (a normal
 // contact payment), then mark it paid. The record here is already saved.
-export const UpiPay: React.FC<{ vpa: string; name: string; amount: number; note?: string; phone?: string | null }> = ({
-  vpa, name, amount, note, phone,
+export const UpiPay: React.FC<{ vpa: string; name: string; amount: number; note?: string; phone?: string | null; autoOpen?: boolean }> = ({
+  vpa, name, amount, note, phone, autoOpen,
 }) => {
   const [copied, setCopied] = React.useState<'' | 'vpa' | 'phone' | 'amount'>('');
   const valid = isValidVpa(vpa);
   const upi = buildUpiLink({ vpa, name, amount, note });
   const gpay = buildGpayLink({ vpa, name, amount, note });
   const isSalary = note?.toLowerCase().includes('salary');
+
+  // Auto-launch the UPI app once when the payment screen appears (admin asked for
+  // it to open on its own). Whether the bank then completes it is still up to UPI.
+  React.useEffect(() => {
+    if (autoOpen && valid) {
+      const t = setTimeout(() => { try { window.location.href = upi; } catch { /* ignore */ } }, 500);
+      return () => clearTimeout(t);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const copy = (what: 'vpa' | 'phone' | 'amount', value: string) => {
     navigator.clipboard?.writeText(value); setCopied(what); setTimeout(() => setCopied(''), 1500);
