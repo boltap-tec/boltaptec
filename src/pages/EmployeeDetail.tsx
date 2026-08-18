@@ -186,7 +186,7 @@ export const EmployeeDetail: React.FC = () => {
             <div className="rounded-xl bg-emerald-50 text-emerald-700 p-3 text-sm font-semibold text-center">
               ✓ Recorded {inr(Number(amount))} {modal === 'advance' ? 'advance' : 'salary'} for {emp.name}
             </div>
-            <UpiPay vpa={emp.upi_id} name={emp.name} amount={Number(amount)} note={modal === 'advance' ? 'Advance' : 'Salary'} />
+            <UpiPay vpa={emp.upi_id} name={emp.name} amount={Number(amount)} note={modal === 'advance' ? 'Advance' : 'Salary'} phone={emp.phone} />
             <button onClick={() => setModal(null)} className="btn-ghost w-full">Done</button>
           </div>
         ) : (

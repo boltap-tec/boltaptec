@@ -259,7 +259,7 @@ export const Salary: React.FC = () => {
               {rowStatus(paid.row) !== 'Paid' && <div className="text-amber-600 mt-1">Partial — {inr(Math.max(0, (paid.row.salary_amount - paid.row.advance_recovered) - paid.row.salary_given))} still remains (stays payable).</div>}
               {rowStatus(paid.row) === 'Paid' && <div className="text-emerald-600 mt-1">Fully settled ✓</div>}
             </div>
-            {showUpi && paid.emp?.upi_id && <UpiPay vpa={paid.emp.upi_id} name={paid.emp.name} amount={paid.cash} note="Salary" />}
+            {showUpi && paid.emp?.upi_id && <UpiPay vpa={paid.emp.upi_id} name={paid.emp.name} amount={paid.cash} note="Salary" phone={paid.emp.phone} />}
             <button onClick={doPayslip} className="btn-primary w-full"><FileDown size={16} /> Payslip PDF (send to {payRow.employee_name})</button>
             <button onClick={() => { setPayRow(null); setPaid(null); }} className="btn-ghost w-full">Done</button>
           </div>
