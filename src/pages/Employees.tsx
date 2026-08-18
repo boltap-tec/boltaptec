@@ -143,7 +143,7 @@ export const Employees: React.FC = () => {
             <Field label="Daily Wage (₹) *">
               <input type="number" className="input" value={form.daily_wage} onChange={(e) => setForm({ ...form, daily_wage: e.target.value })} placeholder="800" />
             </Field>
-            <Field label="Phone">
+            <Field label="Phone / UPI number" hint="Their UPI-linked mobile number — used to pay them in any UPI app.">
               <input className="input" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="9xxxxxxxxx" />
             </Field>
           </div>
