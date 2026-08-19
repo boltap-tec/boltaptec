@@ -4,7 +4,6 @@ import { useData } from '../store/useData';
 import { usePrefs } from '../store/usePrefs';
 import { Card, Field, Badge, Modal } from '../components/ui';
 import { isValidVpa } from '../lib/upi';
-import { getWaNumber, setWaNumber } from '../lib/config';
 import { downloadBackup } from '../lib/backup';
 import { compressImage } from '../lib/image';
 import { cloudEnabled, cloudState, pushAll, pullAll, wipeAllCloud } from '../lib/cloud';
@@ -20,7 +19,6 @@ export const Settings: React.FC = () => {
   const [saved, setSaved] = useState(false);
   const [cloudMsg, setCloudMsg] = useState('');
   const [busy, setBusy] = useState(false);
-  const [waNumber, setWaNum] = useState(getWaNumber());
 
   // Google Drive backup
   const [driveMsg, setDriveMsg] = useState('');
@@ -74,7 +72,6 @@ export const Settings: React.FC = () => {
   const save = () => {
     if (form.admin_upi_id && !isValidVpa(form.admin_upi_id)) { alert('Business UPI ID looks invalid'); return; }
     if (!/^\d{4}$/.test(form.admin_pin || '')) { alert('Admin PIN must be exactly 4 digits'); return; }
-    setWaNumber(waNumber);
     useData.setState({ settings: form });
     setSaved(true); setTimeout(() => setSaved(false), 1800);
   };
@@ -185,9 +182,6 @@ export const Settings: React.FC = () => {
         </Field>
         <Field label="Business UPI ID" hint="Where salary/advance payments are sent from — shown on payment screens.">
           <input className="input" value={form.admin_upi_id} onChange={(e) => setForm({ ...form, admin_upi_id: e.target.value })} placeholder="business@okaxis" />
-        </Field>
-        <Field label="Admin WhatsApp number" hint="Payment links are sent to this number on WhatsApp. Include country code, e.g. 9198XXXXXXXX.">
-          <input inputMode="tel" className="input" value={waNumber} onChange={(e) => setWaNum(e.target.value.replace(/[^\d]/g, ''))} placeholder="9198XXXXXXXX" />
         </Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Standard Hours / Day">

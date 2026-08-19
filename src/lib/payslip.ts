@@ -90,7 +90,10 @@ export const generatePayslip = (
   // ---- History table ----
   doc.setTextColor(...SLATE); doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
   doc.text('Payment & Advance History', M, y); y += 8;
-  const mine = ledger.filter((l) => l.employee_id === emp.employee_id);
+  const mine = ledger
+    .filter((l) => l.employee_id === emp.employee_id)
+    .slice()
+    .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)); // newest first
   const rows = mine.slice(0, 55).map((l) => {
     const amt = l.total_amount_given || l.salary_payment_amount || l.advance_payment || l.advance_recovery || 0;
     const type = l.category === 'Salary' ? 'Salary paid'

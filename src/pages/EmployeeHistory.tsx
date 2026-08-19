@@ -1,10 +1,11 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Wallet, HandCoins, TrendingDown, Clock, CalendarRange } from 'lucide-react';
+import { ArrowLeft, Wallet, HandCoins, TrendingDown, Clock, CalendarRange, FileDown } from 'lucide-react';
 import { useAuth } from '../store/useAuth';
 import { useData } from '../store/useData';
 import { Card, Badge, EmptyState } from '../components/ui';
 import { inr, fmtDate, fmtDateShort } from '../lib/format';
+import { sharePayslip } from '../lib/payslip';
 
 // Monday-based week key for grouping.
 const weekKey = (dateStr: string) => {
@@ -19,10 +20,23 @@ const byDateDesc = (a: { date: string }, b: { date: string }) => (a.date < b.dat
 export const EmployeeHistory: React.FC = () => {
   const { session } = useAuth();
   const navigate = useNavigate();
-  const { ledger, attendance } = useData();
+  const { ledger, attendance, employees, settings } = useData();
   const [tab, setTab] = useState<'weekly' | 'money' | 'attendance'>('weekly');
 
   const id = session?.employee_id;
+  const emp = employees.find((e) => e.employee_id === id);
+
+  // Payslip for one week: only that week's transactions, with the week summary.
+  const weekPayslip = (wk: string, w: { earned: number; salaryPaid: number; recovered: number }) => {
+    if (!emp) return;
+    const end = new Date(wk); end.setDate(end.getDate() + 6);
+    const endStr = end.toISOString().slice(0, 10);
+    const weekLedger = ledger.filter((l) => l.employee_id === id && l.date >= wk && l.date <= endStr);
+    sharePayslip(emp, weekLedger, settings, {
+      date: endStr, period: `${fmtDate(wk)} → ${fmtDate(endStr)}`,
+      gross: w.earned, recovery: w.recovered, net: w.salaryPaid, method: 'UPI',
+    });
+  };
   const myLedger = useMemo(() => ledger.filter((l) => l.employee_id === id).slice().sort(byDateDesc), [ledger, id]);
   const myAtt = useMemo(() => attendance.filter((a) => a.employee_id === id).slice().sort(byDateDesc), [attendance, id]);
 
@@ -70,6 +84,7 @@ export const EmployeeHistory: React.FC = () => {
                     <div className="rounded-lg bg-amber-50 p-2"><div className="text-[11px] text-slate-400 font-semibold">ADVANCE TAKEN</div><div className="font-bold text-amber-600">{inr(w.advance)}</div></div>
                     <div className="rounded-lg bg-sky-50 p-2"><div className="text-[11px] text-slate-400 font-semibold">ADVANCE REPAID</div><div className="font-bold text-sky-600">{inr(w.recovered)}</div></div>
                   </div>
+                  <button onClick={() => weekPayslip(wk, w)} className="btn-primary w-full mt-3 text-sm"><FileDown size={16} /> View / Download Payslip</button>
                 </Card>
               );
             })}
