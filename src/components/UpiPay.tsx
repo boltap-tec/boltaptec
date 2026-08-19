@@ -1,111 +1,94 @@
 import React from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
-import { Smartphone, Copy, Check, Phone, IndianRupee, ShieldAlert, MessageCircle, ExternalLink } from 'lucide-react';
-import { buildUpiLink, buildGpayLink, isValidVpa, buildPayPageLink, buildWhatsAppLink } from '../lib/upi';
-import { getWaNumber } from '../lib/config';
+import { Check, Phone, IndianRupee, ShieldAlert, MessageCircle, Download } from 'lucide-react';
+import { buildUpiLink, isValidVpa } from '../lib/upi';
 import { inr } from '../lib/format';
 
-// UPI apps flag payments auto-launched from another app as a "security risk", so
-// the reliable path is: pay the worker's NUMBER manually in any UPI app (a normal
-// contact payment), then mark it paid. The record here is already saved.
-export const UpiPay: React.FC<{ vpa: string; name: string; amount: number; note?: string; phone?: string | null; autoOpen?: boolean }> = ({
-  vpa, name, amount, note, phone, autoOpen,
+// The QR encodes a UPI payment. Scanning it in WhatsApp Pay / any UPI app is a
+// normal user-initiated payment, so it is NOT hit by the "started by another
+// app" security block. The "WhatsApp Pay" button shares the QR image to WhatsApp.
+export const UpiPay: React.FC<{ vpa: string; name: string; amount: number; note?: string; phone?: string | null }> = ({
+  vpa, name, amount, note, phone,
 }) => {
   const [copied, setCopied] = React.useState<'' | 'vpa' | 'phone' | 'amount'>('');
+  const [msg, setMsg] = React.useState('');
+  const qrWrap = React.useRef<HTMLDivElement>(null);
   const valid = isValidVpa(vpa);
   const isSalary = note?.toLowerCase().includes('salary');
   const upi = buildUpiLink({ vpa, name, amount, note });
-  const gpay = buildGpayLink({ vpa, name, amount, note });
-  const payPage = buildPayPageLink({ vpa, name, amount, note });
-  const waNumber = getWaNumber();
-  const waText = `${isSalary ? 'Salary' : 'Advance'} payment: ${inr(amount)} to ${name}. Tap to pay:\n${payPage}`;
-  const whatsapp = buildWhatsAppLink(waText, waNumber);
-
-  // Auto-launch the UPI app once when the payment screen appears (admin asked for
-  // it to open on its own). Whether the bank then completes it is still up to UPI.
-  React.useEffect(() => {
-    if (autoOpen && valid) {
-      const t = setTimeout(() => { try { window.location.href = upi; } catch { /* ignore */ } }, 500);
-      return () => clearTimeout(t);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const copy = (what: 'vpa' | 'phone' | 'amount', value: string) => {
     navigator.clipboard?.writeText(value); setCopied(what); setTimeout(() => setCopied(''), 1500);
   };
 
+  // Turn the on-screen QR canvas into a PNG and share it (WhatsApp etc.).
+  const shareQr = async () => {
+    const canvas = qrWrap.current?.querySelector('canvas') as HTMLCanvasElement | null;
+    if (!canvas) return;
+    canvas.toBlob(async (blob) => {
+      if (!blob) return;
+      const file = new File([blob], `Pay_${name.replace(/\s+/g, '_')}_${amount}.png`, { type: 'image/png' });
+      const text = `Pay ${inr(amount)} to ${name} — scan this QR in WhatsApp Pay or any UPI app.`;
+      const nav: any = navigator;
+      if (nav.canShare && nav.canShare({ files: [file] })) {
+        try { await nav.share({ files: [file], text, title: 'UPI Payment QR' }); return; }
+        catch { /* cancelled */ return; }
+      }
+      // Desktop / no share support → download the QR so it can be sent manually.
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = file.name; a.click();
+      setMsg('QR image downloaded — send it on WhatsApp to pay.');
+      setTimeout(() => setMsg(''), 4000);
+    });
+  };
+
+  if (!valid) {
+    return (
+      <div className="rounded-xl bg-amber-50 text-amber-700 p-3 text-sm font-medium">
+        No valid UPI ID on file for {name}. Add their UPI ID on the profile to generate a payment QR.
+      </div>
+    );
+  }
+
   return (
     <div className="rounded-2xl bg-slate-50 p-4">
-      <div className="text-center text-sm font-semibold text-slate-600 mb-2">Send {inr(amount)} to {name}</div>
+      <div className="text-center text-sm font-semibold text-slate-600 mb-2">Pay {inr(amount)} to {name}</div>
 
-      {/* Payment link — opened via WhatsApp / browser so the UPI app is launched
-          by a trusted app, which can avoid the "started by another app" block. */}
-      {valid && (
-        <div className="grid grid-cols-2 gap-2 mb-3">
-          <a href={whatsapp} target="_blank" rel="noopener noreferrer" className="btn text-sm text-white" style={{ background: '#25D366' }}>
-            <MessageCircle size={16} /> WhatsApp link
-          </a>
-          <a href={payPage} target="_blank" rel="noopener noreferrer" className="btn-primary text-sm">
-            <ExternalLink size={16} /> Pay via link
-          </a>
-        </div>
-      )}
-
-      {/* PRIMARY: pay this number in any UPI app */}
-      <div className="rounded-xl bg-white p-4 shadow-sm">
-        <div className="text-[11px] font-semibold text-brand-500 uppercase text-center mb-2">Open any UPI app & pay this number</div>
-
-        {phone ? (
-          <button onClick={() => copy('phone', phone)} className="w-full rounded-xl bg-brand-50 hover:bg-brand-100 py-3 text-center transition">
-            <div className="text-[10px] text-slate-400 font-semibold flex items-center justify-center gap-1"><Phone size={11} /> UPI NUMBER {copied === 'phone' && <span className="text-emerald-500">· copied ✓</span>}</div>
-            <div className="font-extrabold text-slate-800 text-xl tracking-wide">{phone}</div>
-            <div className="text-[11px] text-brand-600 font-semibold mt-0.5 flex items-center justify-center gap-1"><Copy size={11} /> tap to copy</div>
-          </button>
-        ) : (
-          <div className="rounded-xl bg-amber-50 text-amber-700 p-3 text-sm text-center">No phone number on file for {name}. Add it on their profile.</div>
-        )}
-
-        <div className="grid grid-cols-2 gap-2 mt-2">
-          <button onClick={() => copy('amount', String(amount))} className="rounded-xl bg-slate-100 hover:bg-slate-200 py-2 text-center transition">
-            <div className="text-[10px] text-slate-400 font-semibold flex items-center justify-center gap-0.5"><IndianRupee size={10} /> AMOUNT {copied === 'amount' && <Check size={10} className="text-emerald-500" />}</div>
-            <div className="font-bold text-slate-700">{inr(amount)}</div>
-          </button>
-          {valid ? (
-            <button onClick={() => copy('vpa', vpa)} className="rounded-xl bg-slate-100 hover:bg-slate-200 py-2 text-center transition">
-              <div className="text-[10px] text-slate-400 font-semibold flex items-center justify-center gap-0.5">UPI ID {copied === 'vpa' && <Check size={10} className="text-emerald-500" />}</div>
-              <div className="font-bold text-slate-700 text-xs truncate px-1">{vpa}</div>
-            </button>
-          ) : <div />}
-        </div>
-
-        <ol className="mt-3 text-[12px] text-slate-500 space-y-0.5 list-decimal list-inside">
-          <li>Open <b>GPay / PhonePe / Paytm</b> yourself</li>
-          <li>Pay to the number above (or your saved contact)</li>
-          <li>Come back and tap <b>Done</b> → mark it <b>Sent ✓</b></li>
-        </ol>
+      {/* Payment QR — scan in WhatsApp Pay / any UPI app */}
+      <div ref={qrWrap} className="bg-white p-3 rounded-xl shadow-sm w-fit mx-auto">
+        <QRCodeCanvas value={upi} size={168} level="M" includeMargin />
       </div>
 
-      {/* Optional: try the in-app deep link + QR (often blocked as "security risk") */}
-      {valid && (
-        <details className="mt-3">
-          <summary className="text-[12px] text-slate-400 cursor-pointer text-center">Advanced: try launching an app / scan QR</summary>
-          <div className="mt-2 flex flex-col items-center gap-2">
-            <div className="grid grid-cols-2 gap-2 w-full">
-              <button onClick={() => { window.location.href = gpay; }} className="btn-success text-xs"><Smartphone size={14} /> GPay</button>
-              <button onClick={() => { window.location.href = upi; }} className="btn-primary text-xs"><Smartphone size={14} /> UPI app</button>
-            </div>
-            <div className="bg-white p-2.5 rounded-xl shadow-sm"><QRCodeCanvas value={upi} size={116} level="M" /></div>
-          </div>
-        </details>
-      )}
+      {/* WhatsApp Pay — send the QR */}
+      <button onClick={shareQr} className="btn w-full text-white text-sm mt-3" style={{ background: '#25D366' }}>
+        <MessageCircle size={17} /> WhatsApp Pay — send QR
+      </button>
+      {msg && <div className="text-[12px] text-emerald-600 font-semibold text-center mt-1.5 flex items-center justify-center gap-1"><Download size={12} /> {msg}</div>}
 
-      {/* Why auto-launch fails */}
-      <div className="mt-3 rounded-xl bg-amber-50 text-amber-800 p-3 text-[12px] leading-relaxed flex gap-2">
+      {/* Manual details */}
+      <div className="grid grid-cols-3 gap-2 mt-3">
+        <button onClick={() => copy('amount', String(amount))} className="rounded-xl bg-white shadow-sm py-2 text-center">
+          <div className="text-[10px] text-slate-400 font-semibold flex items-center justify-center gap-0.5"><IndianRupee size={10} /> AMOUNT {copied === 'amount' && <Check size={10} className="text-emerald-500" />}</div>
+          <div className="font-bold text-slate-700 text-sm">{amount}</div>
+        </button>
+        {phone ? (
+          <button onClick={() => copy('phone', phone)} className="rounded-xl bg-white shadow-sm py-2 text-center col-span-2">
+            <div className="text-[10px] text-slate-400 font-semibold flex items-center justify-center gap-0.5"><Phone size={10} /> NUMBER {copied === 'phone' && <Check size={10} className="text-emerald-500" />}</div>
+            <div className="font-bold text-slate-700 text-sm truncate">{phone}</div>
+          </button>
+        ) : (
+          <button onClick={() => copy('vpa', vpa)} className="rounded-xl bg-white shadow-sm py-2 text-center col-span-2">
+            <div className="text-[10px] text-slate-400 font-semibold flex items-center justify-center gap-0.5">UPI ID {copied === 'vpa' && <Check size={10} className="text-emerald-500" />}</div>
+            <div className="font-bold text-slate-700 text-xs truncate px-1">{vpa}</div>
+          </button>
+        )}
+      </div>
+
+      <div className="mt-3 rounded-xl bg-emerald-50 text-emerald-800 p-3 text-[12px] leading-relaxed flex gap-2">
         <ShieldAlert size={15} className="shrink-0 mt-0.5" />
         <div>
-          <b>"Security risk / limit exceeded"?</b> UPI apps block payments auto-started by another app. That's why the buttons fail — it's not this app. <b>Pay the number above yourself</b> in any UPI app (a normal contact payment works fine).
-          <div className="mt-1">This {isSalary ? 'salary' : 'advance'} is <b>already saved</b> here — after paying, tap <b>Done</b>, then mark it <b>Sent ✓</b> in the Ledger.</div>
+          Tap <b>WhatsApp Pay — send QR</b> to share this QR to WhatsApp, then <b>scan it in WhatsApp Pay</b> (or any UPI app) to pay. Scanning a QR is a normal payment, so it isn't blocked.
+          <div className="mt-1">This {isSalary ? 'salary' : 'advance'} is <b>already recorded</b> — after paying, tap <b>Done</b> and mark it <b>Sent ✓</b> in the Ledger.</div>
         </div>
       </div>
     </div>

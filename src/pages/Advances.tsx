@@ -273,7 +273,7 @@ export const Advances: React.FC = () => {
                 ✓ {inr(approveFor.amount)} advance recorded for {approveFor.employee_name}
               </div>
               {e?.upi_id
-                ? <UpiPay vpa={e.upi_id} name={e.name} amount={approveFor.amount} note="Advance" phone={e.phone} autoOpen />
+                ? <UpiPay vpa={e.upi_id} name={e.name} amount={approveFor.amount} note="Advance" phone={e.phone} />
                 : <div className="rounded-xl bg-amber-50 text-amber-700 p-3 text-sm">No UPI ID on file. Pay by cash or add a UPI ID on their profile.</div>}
               <button onClick={() => { setShowPay(false); setApproveFor(null); setDirectModal(false); }} className="btn-ghost w-full">Done</button>
             </div>

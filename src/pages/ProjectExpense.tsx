@@ -255,7 +255,7 @@ export const ProjectExpense: React.FC = () => {
               </Field>
               {payMethod === 'UPI' && (
                 e?.upi_id
-                  ? <UpiPay vpa={e.upi_id} name={e.name} amount={payFor.amount} note={`${payFor.category_name} · ${payFor.project_name}`} phone={e.phone} autoOpen />
+                  ? <UpiPay vpa={e.upi_id} name={e.name} amount={payFor.amount} note={`${payFor.category_name} · ${payFor.project_name}`} phone={e.phone} />
                   : <div className="rounded-xl bg-amber-50 text-amber-700 p-3 text-sm">No UPI ID on file for {payFor.employee_name}. Pay by cash or add a UPI ID on their profile.</div>
               )}
               <div className="flex gap-2 pt-1">
