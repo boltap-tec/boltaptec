@@ -4,6 +4,8 @@ import { useData } from '../store/useData';
 import { usePrefs } from '../store/usePrefs';
 import { Card, Field, Badge, Modal } from '../components/ui';
 import { isValidVpa } from '../lib/upi';
+import { getTheme, setTheme, type Theme } from '../lib/theme';
+import { Sun, Moon } from 'lucide-react';
 import { downloadBackup } from '../lib/backup';
 import { compressImage } from '../lib/image';
 import { cloudEnabled, cloudState, pushAll, pullAll, wipeAllCloud } from '../lib/cloud';
@@ -19,6 +21,8 @@ export const Settings: React.FC = () => {
   const [saved, setSaved] = useState(false);
   const [cloudMsg, setCloudMsg] = useState('');
   const [busy, setBusy] = useState(false);
+  const [theme, setThemeState] = useState<Theme>(getTheme());
+  const pickTheme = (t: Theme) => { setTheme(t); setThemeState(t); };
 
   // Google Drive backup
   const [driveMsg, setDriveMsg] = useState('');
@@ -159,6 +163,21 @@ export const Settings: React.FC = () => {
           </div>
         )}
         {cloudMsg && <div className="text-sm font-semibold text-slate-600">{cloudMsg}</div>}
+      </Card>
+
+      <Card className="p-5 space-y-3">
+        <h3 className="font-bold text-slate-700 flex items-center gap-2">
+          {theme === 'dark' ? <Moon size={18} className="text-brand-500" /> : <Sun size={18} className="text-brand-500" />} Appearance
+        </h3>
+        <p className="text-sm text-slate-500">Choose your theme — it stays until you change it.</p>
+        <div className="grid grid-cols-2 gap-2">
+          <button onClick={() => pickTheme('light')} className={`btn ${theme === 'light' ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
+            <Sun size={16} /> Light
+          </button>
+          <button onClick={() => pickTheme('dark')} className={`btn ${theme === 'dark' ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
+            <Moon size={16} /> Dark
+          </button>
+        </div>
       </Card>
 
       <Card className="p-5 space-y-3">
