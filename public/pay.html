@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Boltaptec — UPI Payment</title>
+  <style>
+    body { font-family: system-ui, "Segoe UI", sans-serif; background: #0b1020; color: #e5e9f5; text-align: center; padding: 40px 20px; margin: 0; }
+    .card { max-width: 380px; margin: 40px auto; background: #151b30; border-radius: 20px; padding: 28px 22px; box-shadow: 0 10px 40px rgba(0,0,0,.4); }
+    h1 { font-size: 18px; margin: 0 0 4px; }
+    .amt { font-size: 34px; font-weight: 800; margin: 14px 0 2px; }
+    .to { color: #9aa4c0; font-size: 14px; }
+    a.btn { display: block; margin-top: 22px; background: #4f46e5; color: #fff; padding: 15px; border-radius: 14px; text-decoration: none; font-weight: 700; font-size: 16px; }
+    .hint { color: #6b7495; font-size: 12px; margin-top: 14px; line-height: 1.5; }
+    .vpa { color: #9aa4c0; font-size: 13px; margin-top: 6px; word-break: break-all; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>⚡ Boltaptec Payment</h1>
+    <div class="amt" id="amt">₹0</div>
+    <div class="to" id="to"></div>
+    <div class="vpa" id="vpa"></div>
+    <a class="btn" id="lnk" href="#">Open UPI App to Pay</a>
+    <div class="hint">Opening your UPI app… if nothing happens, tap the button above. This opens GPay / PhonePe / Paytm from your phone.</div>
+  </div>
+  <script>
+    var q = new URLSearchParams(location.search);
+    var pa = q.get('pa') || '', pn = q.get('pn') || '', am = q.get('am') || '', tn = q.get('tn') || '';
+    function build(scheme) {
+      var s = scheme + '?pa=' + encodeURIComponent(pa) + '&pn=' + encodeURIComponent(pn);
+      if (am) s += '&am=' + encodeURIComponent(am);
+      s += '&cu=INR';
+      if (tn) s += '&tn=' + encodeURIComponent(tn);
+      return s;
+    }
+    var upi = build('upi://pay');
+    document.getElementById('amt').textContent = am ? ('₹' + am) : '';
+    document.getElementById('to').textContent = pn ? ('to ' + pn) : '';
+    document.getElementById('vpa').textContent = pa;
+    document.getElementById('lnk').href = upi;
+    // Auto-launch the UPI app (this navigation is initiated by the browser, not the app).
+    if (pa) { setTimeout(function () { window.location.href = upi; }, 600); }
+  </script>
+</body>
+</html>

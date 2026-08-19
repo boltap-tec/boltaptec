@@ -1,7 +1,8 @@
 import React from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
-import { Smartphone, Copy, Check, Phone, IndianRupee, ShieldAlert } from 'lucide-react';
-import { buildUpiLink, buildGpayLink, isValidVpa } from '../lib/upi';
+import { Smartphone, Copy, Check, Phone, IndianRupee, ShieldAlert, MessageCircle, ExternalLink } from 'lucide-react';
+import { buildUpiLink, buildGpayLink, isValidVpa, buildPayPageLink, buildWhatsAppLink } from '../lib/upi';
+import { getWaNumber } from '../lib/config';
 import { inr } from '../lib/format';
 
 // UPI apps flag payments auto-launched from another app as a "security risk", so
@@ -12,9 +13,13 @@ export const UpiPay: React.FC<{ vpa: string; name: string; amount: number; note?
 }) => {
   const [copied, setCopied] = React.useState<'' | 'vpa' | 'phone' | 'amount'>('');
   const valid = isValidVpa(vpa);
+  const isSalary = note?.toLowerCase().includes('salary');
   const upi = buildUpiLink({ vpa, name, amount, note });
   const gpay = buildGpayLink({ vpa, name, amount, note });
-  const isSalary = note?.toLowerCase().includes('salary');
+  const payPage = buildPayPageLink({ vpa, name, amount, note });
+  const waNumber = getWaNumber();
+  const waText = `${isSalary ? 'Salary' : 'Advance'} payment: ${inr(amount)} to ${name}. Tap to pay:\n${payPage}`;
+  const whatsapp = buildWhatsAppLink(waText, waNumber);
 
   // Auto-launch the UPI app once when the payment screen appears (admin asked for
   // it to open on its own). Whether the bank then completes it is still up to UPI.
@@ -33,6 +38,19 @@ export const UpiPay: React.FC<{ vpa: string; name: string; amount: number; note?
   return (
     <div className="rounded-2xl bg-slate-50 p-4">
       <div className="text-center text-sm font-semibold text-slate-600 mb-2">Send {inr(amount)} to {name}</div>
+
+      {/* Payment link — opened via WhatsApp / browser so the UPI app is launched
+          by a trusted app, which can avoid the "started by another app" block. */}
+      {valid && (
+        <div className="grid grid-cols-2 gap-2 mb-3">
+          <a href={whatsapp} target="_blank" rel="noopener noreferrer" className="btn text-sm text-white" style={{ background: '#25D366' }}>
+            <MessageCircle size={16} /> WhatsApp link
+          </a>
+          <a href={payPage} target="_blank" rel="noopener noreferrer" className="btn-primary text-sm">
+            <ExternalLink size={16} /> Pay via link
+          </a>
+        </div>
+      )}
 
       {/* PRIMARY: pay this number in any UPI app */}
       <div className="rounded-xl bg-white p-4 shadow-sm">
