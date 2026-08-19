@@ -15,7 +15,7 @@ export const ProjectExpense: React.FC = () => {
   const isAdmin = session?.role === 'admin';
   const {
     employees, projects, expenditureCategories, expenditureRequests, settings,
-    createExpenditureRequest, updateExpenditureRequest, approveExpenditureRequest, rejectExpenditureRequest,
+    createExpenditureRequest, updateExpenditureRequest, approveExpenditureRequest, rejectExpenditureRequest, addProject,
   } = useData();
 
   const visibleCats = expenditureCategories.filter((c) => c.visible);
@@ -27,6 +27,7 @@ export const ProjectExpense: React.FC = () => {
   const [payFor, setPayFor] = useState<ExpenditureRequest | null>(null);
   const [payMethod, setPayMethod] = useState<'Cash' | 'UPI'>('UPI');
   const [payProject, setPayProject] = useState('');   // project admin assigns at approval
+  const [newProj, setNewProj] = useState('');         // admin can add a project inline
 
   // Worker request form — the worker doesn't pick a project; it defaults to
   // Today's Work and the admin confirms/changes it when approving.
@@ -72,12 +73,14 @@ export const ProjectExpense: React.FC = () => {
 
   const openApprove = (r: ExpenditureRequest) => {
     const e = employees.find((x) => x.employee_id === r.employee_id);
-    setPayFor(r);
+    setPayFor(r); setNewProj('');
     setPayMethod(e?.upi_id ? 'UPI' : 'Cash');
-    setPayProject(r.project_id || planActive || activeProjects[0]?.project_id || '');
+    setPayProject(r.project_id || planActive || activeProjects[0]?.project_id || (projects.length ? '' : '__new__'));
   };
   const doApprove = (r: ExpenditureRequest, method: 'Cash' | 'UPI') => {
-    const proj = projects.find((p) => p.project_id === payProject);
+    let proj = projects.find((p) => p.project_id === payProject);
+    // Admin can add a new project on the spot.
+    if (payProject === '__new__' && newProj.trim()) proj = addProject({ name: newProj.trim() });
     if (proj) updateExpenditureRequest(r.id, { project_id: proj.project_id, project_name: proj.name });
     approveExpenditureRequest(r.id, session?.name || 'Admin', method);
   };
@@ -238,12 +241,18 @@ export const ProjectExpense: React.FC = () => {
                 <div className="text-slate-500">{payFor.note || '—'} — {payFor.employee_name}</div>
                 <div className="text-xs text-slate-400 mt-1">Added to the project's expenditure (not to {payFor.employee_name}'s advances).</div>
               </div>
-              <Field label="Add to project" hint={planActive ? "Defaults to today's work." : undefined}>
+              <Field label="Add to project" hint={payFor.project_id ? undefined : 'Worker sent this without a project — pick or add one.'}>
                 <select className="input" value={payProject} onChange={(ev) => setPayProject(ev.target.value)}>
                   <option value="">Select project…</option>
                   {activeProjects.map((p) => <option key={p.project_id} value={p.project_id}>{p.name}{p.project_id === planActive ? ' (today)' : ''}</option>)}
+                  <option value="__new__">+ Add new project…</option>
                 </select>
               </Field>
+              {payProject === '__new__' && (
+                <Field label="New project name">
+                  <input autoFocus className="input" value={newProj} onChange={(ev) => setNewProj(ev.target.value)} placeholder="e.g. Karur Site" />
+                </Field>
+              )}
               <Field label="Reimburse the worker by">
                 <div className="grid grid-cols-2 gap-2">
                   {(['UPI', 'Cash'] as const).map((m) => (
@@ -260,7 +269,7 @@ export const ProjectExpense: React.FC = () => {
               )}
               <div className="flex gap-2 pt-1">
                 <button onClick={() => setPayFor(null)} className="btn-ghost flex-1">Cancel</button>
-                <button onClick={() => { doApprove(payFor, payMethod); setPayFor(null); }} disabled={!payProject} className="btn-success flex-1">
+                <button onClick={() => { doApprove(payFor, payMethod); setPayFor(null); }} disabled={!payProject || (payProject === '__new__' && !newProj.trim())} className="btn-success flex-1">
                   <HandCoins size={16} /> Approve ({payMethod})
                 </button>
               </div>

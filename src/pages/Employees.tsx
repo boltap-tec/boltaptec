@@ -45,10 +45,14 @@ export const Employees: React.FC = () => {
     if (form.upi_id && !isValidVpa(form.upi_id)) { alert('UPI ID looks invalid (e.g. name@okaxis)'); return; }
     const pin = (form.pin || '').trim() || (form.phone ? form.phone.replace(/\D/g, '').slice(-4) : '1234');
     if (!/^\d{4}$/.test(pin)) { alert('PIN must be exactly 4 digits'); return; }
-    const payload = {
+    // If the phone number changed, release the old device binding so the worker
+    // can log in from their new phone.
+    const phoneChanged = !!editing && (editing.phone || '') !== form.phone;
+    const payload: any = {
       name: form.name, address: form.address, phone: form.phone,
       daily_wage: Number(form.daily_wage), upi_id: form.upi_id || null,
       pin, status: form.status, photo,
+      ...(phoneChanged ? { device_id: null } : {}),
     };
     if (editing) updateEmployee(editing.employee_id, payload);
     else addEmployee(payload as any);
