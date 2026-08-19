@@ -31,6 +31,29 @@ export const buildPhonePeLink = (params: UpiParams): string =>
 export const isValidVpa = (vpa: string): boolean =>
   /^[a-zA-Z0-9.\-_]{2,256}@[a-zA-Z]{2,64}$/.test(vpa.trim());
 
+// Opens the GPay app WITHOUT a payment intent (no pa/am) — so it isn't flagged
+// as an "app-initiated payment". The admin pastes the copied number and pays.
+export const GPAY_APP = 'tez://upi/pay';
+
+// Copy text to clipboard (best-effort; needs a user gesture / secure context).
+export const copyToClipboard = async (text: string): Promise<boolean> => {
+  try { await navigator.clipboard.writeText(text); return true; }
+  catch {
+    try {
+      const ta = document.createElement('textarea');
+      ta.value = text; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select(); document.execCommand('copy');
+      document.body.removeChild(ta); return true;
+    } catch { return false; }
+  }
+};
+
+// Copy the worker's number, then open GPay so the admin can paste & pay.
+export const copyNumberAndOpenGpay = async (phone: string): Promise<void> => {
+  await copyToClipboard(phone.replace(/\s/g, ''));
+  setTimeout(() => { try { window.location.href = GPAY_APP; } catch { /* ignore */ } }, 250);
+};
+
 // Public https base that hosts the /pay.html redirect. On the web it's the
 // current origin; inside the APK (localhost/capacitor origin) it falls back to
 // the deployed Vercel site. Change this if your Vercel domain is different.

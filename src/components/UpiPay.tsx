@@ -1,7 +1,7 @@
 import React from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
-import { Check, Phone, IndianRupee, ShieldAlert, MessageCircle, Download } from 'lucide-react';
-import { buildUpiLink, isValidVpa } from '../lib/upi';
+import { Check, Phone, IndianRupee, ShieldAlert, MessageCircle, ClipboardCheck } from 'lucide-react';
+import { buildUpiLink, isValidVpa, copyNumberAndOpenGpay } from '../lib/upi';
 import { inr } from '../lib/format';
 
 // The QR encodes a UPI payment. Scanning it in WhatsApp Pay / any UPI app is a
@@ -54,6 +54,19 @@ export const UpiPay: React.FC<{ vpa: string; name: string; amount: number; note?
     <div className="rounded-2xl bg-slate-50 p-4">
       <div className="text-center text-sm font-semibold text-slate-600 mb-2">Pay {inr(amount)} to {name}</div>
 
+      {msg && <div className="text-[12px] text-emerald-600 font-semibold text-center mb-2 rounded-lg bg-emerald-50 py-2 px-2">{msg}</div>}
+
+      {/* PRIMARY: copy number & open GPay → paste & pay (no payment intent = no block) */}
+      {phone && (
+        <div className="mb-3">
+          <button onClick={() => { copyNumberAndOpenGpay(phone); setMsg(`✓ ${phone} copied — paste it in GPay & pay ${inr(amount)}`); setTimeout(() => setMsg(''), 6000); }}
+            className="btn-primary w-full">
+            <ClipboardCheck size={18} /> Copy number & open GPay
+          </button>
+          <div className="text-[11px] text-slate-400 text-center mt-1">Copies {phone}, opens GPay → tap New payment → paste the number → pay.</div>
+        </div>
+      )}
+
       {/* Payment QR — scan in WhatsApp Pay / any UPI app */}
       <div ref={qrWrap} className="bg-white p-3 rounded-xl shadow-sm w-fit mx-auto">
         <QRCodeCanvas value={upi} size={168} level="M" includeMargin />
@@ -63,7 +76,6 @@ export const UpiPay: React.FC<{ vpa: string; name: string; amount: number; note?
       <button onClick={shareQr} className="btn w-full text-white text-sm mt-3" style={{ background: '#25D366' }}>
         <MessageCircle size={17} /> WhatsApp Pay — send QR
       </button>
-      {msg && <div className="text-[12px] text-emerald-600 font-semibold text-center mt-1.5 flex items-center justify-center gap-1"><Download size={12} /> {msg}</div>}
 
       {/* Manual details */}
       <div className="grid grid-cols-3 gap-2 mt-3">

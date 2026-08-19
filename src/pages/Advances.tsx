@@ -8,6 +8,7 @@ import { Card, Avatar, Badge, Modal, Field, EmptyState, StatCard } from '../comp
 import { UpiPay } from '../components/UpiPay';
 import { inr, fmtDate, today } from '../lib/format';
 import { advancePending } from '../lib/calc';
+import { copyNumberAndOpenGpay } from '../lib/upi';
 import type { AdvanceRequest } from '../types';
 
 export const Advances: React.FC = () => {
@@ -64,14 +65,20 @@ export const Advances: React.FC = () => {
     const e = employees.find((x) => x.employee_id === empId);
     if (!e || !amt) return;
     giveAdvance(e.employee_id, amt, method, reason || 'Direct advance', undefined, giveDate);
-    if (method === 'UPI' && e.upi_id) { setApproveFor({ employee_id: e.employee_id, employee_name: e.name, amount: amt } as any); setShowPay(true); }
-    else { setDirectModal(false); setAmount(''); setReason(''); }
+    if (method === 'UPI') {
+      setApproveFor({ employee_id: e.employee_id, employee_name: e.name, amount: amt } as any); setShowPay(true);
+      if (e.phone) copyNumberAndOpenGpay(e.phone);
+    } else { setDirectModal(false); setAmount(''); setReason(''); }
   };
 
   const doApprove = (r: AdvanceRequest) => {
     approveRequest(r.id, session?.name || 'Admin');
     const e = employees.find((x) => x.employee_id === r.employee_id);
-    if (r.method === 'UPI' && e?.upi_id) { setApproveFor(r); setShowPay(true); }
+    if (r.method === 'UPI' && e) {
+      setApproveFor(r); setShowPay(true);
+      // Copy the worker's number and open GPay so you can paste & pay.
+      if (e.phone) copyNumberAndOpenGpay(e.phone);
+    }
   };
 
   const totals = {
