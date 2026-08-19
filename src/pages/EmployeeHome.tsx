@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Wallet, HandCoins, TrendingDown, Clock, Send, Banknote, Smartphone,
   ArrowRight, CheckCircle2, XCircle, Sparkles, CalendarDays,
-  LogIn, LogOut, Camera, Fingerprint, FileDown, MapPin, Receipt, KeyRound,
+  LogIn, LogOut, Camera, Fingerprint, FileDown, MapPin, Receipt, KeyRound, Sun, Moon,
 } from 'lucide-react';
 import { useAuth } from '../store/useAuth';
 import { useData } from '../store/useData';
@@ -13,6 +13,7 @@ import { advancePending, salaryForPeriod } from '../lib/calc';
 import { getDeviceId, shortDeviceId } from '../lib/device';
 import { compressImage } from '../lib/image';
 import { sharePayslip } from '../lib/payslip';
+import { getTheme, setTheme, type Theme } from '../lib/theme';
 import { getLocation } from '../lib/geo';
 import { useT } from '../lib/i18n';
 import { ChangePinModal } from '../components/ChangePinModal';
@@ -30,6 +31,8 @@ export const EmployeeHome: React.FC = () => {
   const [method, setMethod] = useState<'UPI' | 'Cash'>('UPI');
   const [msg, setMsg] = useState('');
   const [locating, setLocating] = useState(false);
+  const [theme, setThemeState] = useState<Theme>(getTheme());
+  const toggleTheme = () => { const t: Theme = theme === 'dark' ? 'light' : 'dark'; setTheme(t); setThemeState(t); };
   const [pinOpen, setPinOpen] = useState(false);
   const deviceId = getDeviceId();
 
@@ -112,6 +115,10 @@ export const EmployeeHome: React.FC = () => {
           <div className="text-slate-400 text-sm">{new Date().getHours() < 12 ? t('home.goodMorning') : new Date().getHours() < 17 ? t('home.goodAfternoon') : t('home.goodEvening')},</div>
           <div className="text-xl font-extrabold text-slate-800">{emp.name} 👋</div>
         </div>
+        <button onClick={toggleTheme} className="ml-auto h-10 w-10 rounded-xl bg-slate-100 grid place-items-center text-slate-600 shrink-0"
+          title={theme === 'dark' ? 'Switch to light' : 'Switch to dark'}>
+          {theme === 'dark' ? <Sun size={19} /> : <Moon size={19} />}
+        </button>
       </div>
 
       {msg && <div className="rounded-xl bg-slate-800 text-white text-sm font-semibold px-4 py-2.5 text-center">{msg}</div>}
