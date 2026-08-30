@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Wallet, HandCoins, TrendingDown, Clock, Send, Banknote, Smartphone,
   ArrowRight, CheckCircle2, XCircle, Sparkles, CalendarDays,
-  LogIn, LogOut, Camera, Fingerprint, FileDown, MapPin, Receipt, KeyRound, Sun, Moon,
+  LogIn, LogOut, Camera, Fingerprint, MapPin, Receipt, KeyRound, Sun, Moon,
 } from 'lucide-react';
 import { useAuth } from '../store/useAuth';
 import { useData } from '../store/useData';
@@ -12,7 +12,7 @@ import { inr, fmtDate, today } from '../lib/format';
 import { advancePending, salaryForPeriod } from '../lib/calc';
 import { getDeviceId, shortDeviceId } from '../lib/device';
 import { compressImage } from '../lib/image';
-import { sharePayslip } from '../lib/payslip';
+import { PayslipButton } from '../components/PayslipButton';
 import { getTheme, setTheme, type Theme } from '../lib/theme';
 import { getLocation } from '../lib/geo';
 import { useT } from '../lib/i18n';
@@ -279,7 +279,7 @@ export const EmployeeHome: React.FC = () => {
       </Card>
 
       <div className="grid grid-cols-2 gap-2">
-        <button onClick={() => sharePayslip(emp, ledger, settings)} className="btn-primary"><FileDown size={16} /> My Payslip PDF</button>
+        <PayslipButton emp={emp} ledger={ledger} settings={settings} label="My Payslip PDF" className="btn-primary" iconSize={16} />
         <button onClick={() => navigate('/my-history')} className="btn-ghost">Full history <ArrowRight size={16} /></button>
         <button onClick={() => setPinOpen(true)} className="btn-ghost col-span-2"><KeyRound size={16} /> Change my PIN</button>
       </div>

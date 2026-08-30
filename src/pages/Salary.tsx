@@ -1,15 +1,15 @@
 import React, { useState, useMemo } from 'react';
 import {
-  Calendar, CheckCircle2, Banknote, Smartphone, FileSpreadsheet, FileDown,
+  Calendar, CheckCircle2, Banknote, Smartphone, FileSpreadsheet,
   Trash2, Clock, PlayCircle,
 } from 'lucide-react';
 import { useData } from '../store/useData';
 import { Card, Avatar, Badge, Modal, Field, EmptyState } from '../components/ui';
 import { UpiPay } from '../components/UpiPay';
+import { PayslipButton } from '../components/PayslipButton';
 import { inr, today, fmtDate } from '../lib/format';
 import { salaryForPeriod, advancePending } from '../lib/calc';
 import { downloadBackup } from '../lib/backup';
-import { sharePayslip } from '../lib/payslip';
 import type { SalaryDetail } from '../types';
 
 const weekAgo = () => { const d = new Date(); d.setDate(d.getDate() - 6); return d.toISOString().slice(0, 10); };
@@ -89,14 +89,6 @@ export const Salary: React.FC = () => {
     const updated = useData.getState().salaryDetails.find((x) => x.id === payRow.id)!;
     setPaid({ emp: useData.getState().employees.find((e) => e.employee_id === payRow.employee_id), recovery: rec, cash, method, row: updated });
     if (method === 'UPI' && emp.upi_id) setShowUpi(true);
-  };
-
-  const doPayslip = () => {
-    if (!paid?.emp) return;
-    sharePayslip(paid.emp, useData.getState().ledger, settings, {
-      date: today(), period: payRow?.from_to, gross: payRow?.salary_amount,
-      recovery: paid.recovery, net: paid.cash, method: paid.method,
-    });
   };
 
   return (
@@ -232,8 +224,10 @@ export const Salary: React.FC = () => {
                             <td className="px-2 py-2.5 text-right font-bold text-slate-700">{rem > 0 ? inr(rem) : '—'}</td>
                             <td className="px-4 py-2.5 text-right whitespace-nowrap">
                               {st === 'Paid' ? (
-                                <button onClick={() => doPayslipDirect(d)}
-                                  className="btn-ghost text-xs px-2.5 py-1.5"><FileDown size={13} /> Slip</button>
+                                <PayslipButton emp={employees.find((e) => e.employee_id === d.employee_id)!}
+                                  ledger={ledger} settings={settings} label="Slip"
+                                  className="btn-ghost text-xs px-2.5 py-1.5" iconSize={13}
+                                  payment={{ date: today(), from_date: d.from_date, to_date: d.to_date, period: d.from_to, gross: d.salary_amount, recovery: d.advance_recovered, net: d.salary_given, method: 'Cash' }} />
                               ) : (
                                 <button onClick={() => openPay(d)} className="btn-success text-xs px-3 py-1.5">Pay</button>
                               )}
@@ -260,7 +254,11 @@ export const Salary: React.FC = () => {
               {rowStatus(paid.row) === 'Paid' && <div className="text-emerald-600 mt-1">Fully settled ✓</div>}
             </div>
             {showUpi && paid.emp?.upi_id && <UpiPay vpa={paid.emp.upi_id} name={paid.emp.name} amount={paid.cash} note="Salary" phone={paid.emp.phone} />}
-            <button onClick={doPayslip} className="btn-primary w-full"><FileDown size={16} /> Payslip PDF (send to {payRow.employee_name})</button>
+            {paid.emp && (
+              <PayslipButton emp={paid.emp} ledger={useData.getState().ledger} settings={settings}
+                label={`Payslip PDF (${payRow.employee_name})`} className="btn-primary w-full"
+                payment={{ date: today(), from_date: payRow.from_date, to_date: payRow.to_date, period: payRow.from_to, gross: payRow.salary_amount, recovery: paid.recovery, net: paid.cash, method: paid.method }} />
+            )}
             <button onClick={() => { setPayRow(null); setPaid(null); }} className="btn-ghost w-full">Done</button>
           </div>
         ) : (() => {
@@ -319,14 +317,4 @@ export const Salary: React.FC = () => {
     </div>
   );
 
-  // Payslip for an already-paid row (from the grid "Slip" button).
-  function doPayslipDirect(d: SalaryDetail) {
-    const emp = employees.find((e) => e.employee_id === d.employee_id);
-    if (!emp) return;
-    setPayRow(null); setPaid(null);
-    sharePayslip(emp, ledger, settings, {
-      date: today(), period: d.from_to, gross: d.salary_amount,
-      recovery: d.advance_recovered, net: d.salary_given, method: 'Cash',
-    });
-  }
 };

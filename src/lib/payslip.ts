@@ -7,6 +7,15 @@ import { initials } from './format';
 const rupee = (n: number) => 'Rs. ' + Number(n || 0).toLocaleString('en-IN');
 const d = (s: string) => new Date(s).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
 
+// jsPDF's built-in Helvetica is WinAnsi-encoded — characters outside it (e.g. the
+// "→" arrow) render as garbage. Normalise to safe ASCII so text stays clean.
+const safe = (s: string) =>
+  String(s ?? '')
+    .replace(/[→➔➡]/g, ' to ')   // arrows → "to"
+    .replace(/[–—]/g, '-')             // en/em dash → hyphen
+    .replace(/\s+to\s+/g, ' to ')
+    .trim();
+
 // palette
 const INDIGO: [number, number, number] = [79, 70, 229];
 const INDIGO_D: [number, number, number] = [49, 46, 129];
@@ -17,6 +26,7 @@ const MUTED: [number, number, number] = [120, 130, 150];
 
 export interface PayslipPayment {
   date: string; period?: string; gross?: number; recovery?: number; net?: number; method?: string;
+  from_date?: string; to_date?: string;   // when set, the payslip is scoped to this period
 }
 
 export const generatePayslip = (
@@ -60,11 +70,14 @@ export const generatePayslip = (
     doc.text(rupee(payment.net || 0), M + 18, y + 52);
     // right side breakdown
     const rx = W - M - 18;
+    const periodLabel = payment.from_date && payment.to_date
+      ? `${d(payment.from_date)} to ${d(payment.to_date)}`
+      : safe(payment.period || '-');
     doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...MUTED);
-    doc.text(`Period: ${payment.period || '-'}`, rx, y + 20, { align: 'right' });
+    doc.text(`Period: ${periodLabel}`, rx, y + 20, { align: 'right' });
     doc.text(`Salary earned: ${rupee(payment.gross || 0)}`, rx, y + 36, { align: 'right' });
     doc.text(`Advance recovered: ${rupee(payment.recovery || 0)}`, rx, y + 52, { align: 'right' });
-    doc.text(`Paid on ${d(payment.date)} • ${payment.method || 'Cash'}`, rx, y + 66, { align: 'right' });
+    doc.text(`Paid on ${d(payment.date)}  •  ${payment.method || 'Cash'}`, rx, y + 66, { align: 'right' });
     y += 96;
   }
 
@@ -88,10 +101,16 @@ export const generatePayslip = (
   y += 78;
 
   // ---- History table ----
+  // When the payslip is for a specific pay period, scope the transactions to that
+  // date range so the slip matches the "from → to" it was generated for.
+  const inPeriod = !!(payment?.from_date && payment?.to_date);
   doc.setTextColor(...SLATE); doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
-  doc.text('Payment & Advance History', M, y); y += 8;
+  doc.text(inPeriod
+    ? `Transactions  ${d(payment!.from_date!)} to ${d(payment!.to_date!)}`
+    : 'Payment & Advance History', M, y); y += 8;
   const mine = ledger
-    .filter((l) => l.employee_id === emp.employee_id)
+    .filter((l) => l.employee_id === emp.employee_id &&
+      (!inPeriod || (l.date >= payment!.from_date! && l.date <= payment!.to_date!)))
     .slice()
     .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0)); // newest first
   const rows = mine.slice(0, 55).map((l) => {
@@ -123,16 +142,51 @@ export const generatePayslip = (
   return { doc, filename };
 };
 
-export const sharePayslip = async (
+// Open the payslip PDF in a viewer (new tab on the web; the system PDF viewer /
+// share sheet inside the Android app). Never triggers a file download.
+export const viewPayslip = (
   emp: Employee, ledger: LedgerEntry[], settings: Settings, payment?: PayslipPayment,
 ) => {
   const { doc, filename } = generatePayslip(emp, ledger, settings, payment);
   const blob = doc.output('blob');
-  const file = new File([blob], filename, { type: 'application/pdf' });
+  const url = URL.createObjectURL(blob);
+  const win = window.open(url, '_blank');
+  if (win) { setTimeout(() => URL.revokeObjectURL(url), 60_000); return; }
+  // Popup blocked or in-app WebView with no new-tab: fall back to the share sheet
+  // (mobile) or jsPDF's own viewer window.
   const nav: any = navigator;
+  const file = new File([blob], filename, { type: 'application/pdf' });
   if (nav.canShare && nav.canShare({ files: [file] })) {
-    try { await nav.share({ files: [file], title: 'Payslip', text: `Payslip for ${emp.name}` }); return; }
-    catch { /* cancelled → download */ }
+    nav.share({ files: [file], title: filename }).catch(() => doc.output('dataurlnewwindow'));
+  } else {
+    doc.output('dataurlnewwindow');
   }
-  doc.save(filename);
 };
+
+// Download the payslip, then offer to open it. On mobile the OS share sheet is the
+// most reliable "save / open"; on the web we save the file and ask to open it.
+export const downloadPayslip = async (
+  emp: Employee, ledger: LedgerEntry[], settings: Settings, payment?: PayslipPayment,
+) => {
+  const { doc, filename } = generatePayslip(emp, ledger, settings, payment);
+  const blob = doc.output('blob');
+  const nav: any = navigator;
+  const file = new File([blob], filename, { type: 'application/pdf' });
+  // Mobile (Android app): the share sheet lets the worker Save to Files or Open with…
+  if (nav.canShare && nav.canShare({ files: [file] })) {
+    try { await nav.share({ files: [file], title: filename, text: `Payslip for ${emp.name}` }); return; }
+    catch { /* cancelled → fall through to a plain download */ }
+  }
+  // Web: save the file, then ask whether to open it now.
+  doc.save(filename);
+  setTimeout(() => {
+    if (confirm(`Payslip downloaded as "${filename}".\n\nOpen it now?`)) {
+      const url = URL.createObjectURL(blob);
+      window.open(url, '_blank');
+      setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    }
+  }, 300);
+};
+
+// Backwards-compatible alias (older callers) → behaves like Download.
+export const sharePayslip = downloadPayslip;
