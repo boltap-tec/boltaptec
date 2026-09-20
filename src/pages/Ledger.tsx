@@ -104,46 +104,74 @@ export const Ledger: React.FC = () => {
           ) : (
             <div className="space-y-4">
               {grouped.map(([day, list]) => {
-                const paidOut = list.reduce((s, l) => s + ((l.salary_payment_amount || 0) + (l.advance_payment || 0)), 0);
+                // Debit = money paid out (salary + advance given). Credit = money
+                // received back (advance recovered).
+                const debitTotal = list.reduce((s, l) => s + ((l.salary_payment_amount || 0) + (l.advance_payment || 0)), 0);
+                const creditTotal = list.reduce((s, l) => s + (l.advance_recovery || 0), 0);
                 return (
                   <Card key={day} className="overflow-hidden">
-                    <div className="flex items-center justify-between px-4 py-2.5 bg-slate-50 border-b border-slate-100">
+                    <div className="flex items-center justify-between px-5 py-3 bg-slate-50 border-b border-slate-100 flex-wrap gap-2">
                       <div className="flex items-center gap-2 font-bold text-slate-700 text-sm">
                         <Calendar size={16} className="text-brand-500" /> {fmtDate(day)}
                         <Badge tone="brand">{list.length}</Badge>
                       </div>
-                      <span className="text-sm font-bold text-slate-600">{inr(paidOut)}</span>
+                      <div className="flex items-center gap-4 text-xs">
+                        <span className="text-rose-500">Debit <b>{inr(debitTotal)}</b></span>
+                        <span className="text-emerald-600">Credit <b>{inr(creditTotal)}</b></span>
+                      </div>
                     </div>
-                    <div className="divide-y divide-slate-50">
-                      {list.map((l) => {
-                        const m = catMeta[l.category];
-                        const amt = l.total_amount_given || l.salary_payment_amount || l.advance_payment || l.advance_recovery || 0;
-                        const sent = isGpaySent(l.remark);
-                        const rem = displayRemark(l.remark);
-                        const isPayout = l.category !== 'Advance_Recovery';
-                        return (
-                          <div key={l.id} className="flex items-center gap-3 px-4 py-2.5">
-                            <Avatar name={l.employee_name} size={34} />
-                            <div className="flex-1 min-w-0">
-                              <div className="text-sm font-semibold text-slate-700 flex items-center gap-1.5">
-                                {l.employee_name}
-                                {sent && <Badge tone="green"><CheckCircle2 size={11} /> Sent via GPay</Badge>}
-                              </div>
-                              <div className="text-xs text-slate-400">{l.method || 'Cash'}{rem ? ` · ${rem}` : ''}</div>
-                            </div>
-                            <Badge tone={m.tone}>{m.icon} {m.label}</Badge>
-                            <span className={`text-sm font-bold w-24 text-right ${l.category === 'Advance_Recovery' ? 'text-sky-600' : l.category === 'Salary' ? 'text-emerald-600' : 'text-amber-600'}`}>{inr(amt)}</span>
-                            {isPayout && (
-                              <button onClick={() => setLedgerSent(l.id, !sent)}
-                                className={`p-1.5 rounded-lg ${sent ? 'text-emerald-500 hover:bg-emerald-50' : 'text-slate-300 hover:bg-slate-100 hover:text-emerald-500'}`}
-                                title={sent ? 'Sent via GPay — tap to unmark' : 'Mark as paid via GPay'}>
-                                {sent ? <CheckCircle2 size={16} /> : <Send size={15} />}
-                              </button>
-                            )}
-                            <button onClick={() => removeEntry(l)} className="p-1.5 rounded-lg text-rose-300 hover:bg-rose-50 hover:text-rose-500" title="Delete transaction"><Trash2 size={15} /></button>
-                          </div>
-                        );
-                      })}
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm">
+                        <thead>
+                          <tr className="text-left text-[11px] text-slate-400 uppercase font-semibold tracking-wider border-b border-slate-100">
+                            <th className="px-5 py-2.5">Employee</th>
+                            <th className="px-3 py-2.5">Type</th>
+                            <th className="px-5 py-2.5 text-right">Debit</th>
+                            <th className="px-5 py-2.5 text-right border-l border-slate-100">Credit</th>
+                            <th className="px-5 py-2.5 text-right">Action</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-slate-50">
+                          {list.map((l) => {
+                            const m = catMeta[l.category];
+                            const amt = l.total_amount_given || l.salary_payment_amount || l.advance_payment || l.advance_recovery || 0;
+                            const sent = isGpaySent(l.remark);
+                            const rem = displayRemark(l.remark);
+                            const isCredit = l.category === 'Advance_Recovery';
+                            return (
+                              <tr key={l.id} className="hover:bg-slate-50/60">
+                                <td className="px-5 py-3">
+                                  <div className="flex items-center gap-2.5">
+                                    <Avatar name={l.employee_name} size={34} />
+                                    <div className="min-w-0">
+                                      <div className="text-sm font-semibold text-slate-700 flex items-center gap-1.5">
+                                        {l.employee_name}
+                                        {sent && <Badge tone="green"><CheckCircle2 size={11} /> GPay</Badge>}
+                                      </div>
+                                      <div className="text-xs text-slate-400">{l.method || 'Cash'}{rem ? ` · ${rem}` : ''}</div>
+                                    </div>
+                                  </div>
+                                </td>
+                                <td className="px-3 py-3"><Badge tone={m.tone}>{m.icon} {m.label}</Badge></td>
+                                <td className="px-5 py-3 text-right font-bold text-rose-600 whitespace-nowrap">{isCredit ? <span className="text-slate-300">—</span> : inr(amt)}</td>
+                                <td className="px-5 py-3 text-right font-bold text-emerald-600 whitespace-nowrap border-l border-slate-100">{isCredit ? inr(amt) : <span className="text-slate-300">—</span>}</td>
+                                <td className="px-5 py-3 text-right whitespace-nowrap">
+                                  <div className="inline-flex items-center gap-1">
+                                    {!isCredit && (
+                                      <button onClick={() => setLedgerSent(l.id, !sent)}
+                                        className={`p-1.5 rounded-lg ${sent ? 'text-emerald-500 hover:bg-emerald-50' : 'text-slate-300 hover:bg-slate-100 hover:text-emerald-500'}`}
+                                        title={sent ? 'Sent via GPay — tap to unmark' : 'Mark as paid via GPay'}>
+                                        {sent ? <CheckCircle2 size={16} /> : <Send size={15} />}
+                                      </button>
+                                    )}
+                                    <button onClick={() => removeEntry(l)} className="p-1.5 rounded-lg text-rose-300 hover:bg-rose-50 hover:text-rose-500" title="Delete transaction"><Trash2 size={15} /></button>
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
                     </div>
                   </Card>
                 );
