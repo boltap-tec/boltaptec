@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, Wallet, HandCoins, TrendingDown, Clock, CalendarRange } from 'lucide-react';
+import { ArrowLeft, Wallet, HandCoins, TrendingDown, Clock, CalendarRange, Calendar } from 'lucide-react';
 import { useAuth } from '../store/useAuth';
 import { useData } from '../store/useData';
 import { Card, Badge, EmptyState } from '../components/ui';
@@ -21,13 +21,21 @@ export const EmployeeHistory: React.FC = () => {
   const { session } = useAuth();
   const navigate = useNavigate();
   const { ledger, attendance, employees, settings } = useData();
-  const [tab, setTab] = useState<'weekly' | 'money' | 'attendance'>('weekly');
+  const [tab, setTab] = useState<'weekly' | 'advances' | 'money' | 'attendance'>('weekly');
 
   const id = session?.employee_id;
   const emp = employees.find((e) => e.employee_id === id);
 
   const myLedger = useMemo(() => ledger.filter((l) => l.employee_id === id).slice().sort(byDateDesc), [ledger, id]);
   const myAtt = useMemo(() => attendance.filter((a) => a.employee_id === id).slice().sort(byDateDesc), [attendance, id]);
+
+  // Advance ledger grouped by date (newest day on top) — advances given & recovered.
+  const advByDate = useMemo(() => {
+    const adv = myLedger.filter((l) => l.category === 'Advance_Payment' || l.category === 'Advance_Recovery');
+    const m = new Map<string, typeof adv>();
+    adv.forEach((l) => { if (!m.has(l.date)) m.set(l.date, [] as any); (m.get(l.date) as any).push(l); });
+    return [...m.entries()].sort((a, b) => (a[0] < b[0] ? 1 : -1));
+  }, [myLedger]);
 
   // Week-wise roll-up of salary earned, days, advance taken & repaid.
   const weeks = useMemo(() => {
@@ -49,10 +57,10 @@ export const EmployeeHistory: React.FC = () => {
       <h1 className="text-2xl font-extrabold text-slate-800">My History</h1>
 
       <div className="flex gap-1 p-1 bg-slate-100 rounded-xl w-fit">
-        {(['weekly', 'money', 'attendance'] as const).map((t) => (
+        {(['weekly', 'advances', 'money', 'attendance'] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)}
             className={`px-4 py-1.5 rounded-lg text-sm font-semibold capitalize transition ${tab === t ? 'bg-white shadow-sm text-brand-700' : 'text-slate-500'}`}>
-            {t === 'weekly' ? 'Week-wise' : t === 'money' ? 'Payments' : 'Attendance'}
+            {t === 'weekly' ? 'Week-wise' : t === 'advances' ? 'Advances' : t === 'money' ? 'Payments' : 'Attendance'}
           </button>
         ))}
       </div>
@@ -85,6 +93,45 @@ export const EmployeeHistory: React.FC = () => {
             })}
           </div>
         ) : <Card className="p-6"><EmptyState title="No weekly data yet" /></Card>
+      ) : tab === 'advances' ? (
+        advByDate.length ? (
+          <div className="space-y-3">
+            {advByDate.map(([dt, list]) => {
+              const given = list.reduce((s, l) => s + (l.category === 'Advance_Payment' ? (l.advance_payment || 0) : 0), 0);
+              const recovered = list.reduce((s, l) => s + (l.category === 'Advance_Recovery' ? (l.advance_recovery || 0) : 0), 0);
+              const net = given - recovered;
+              return (
+                <Card key={dt} className="overflow-hidden">
+                  <div className="flex items-center justify-between px-4 py-2.5 bg-slate-50 border-b border-slate-100">
+                    <div className="flex items-center gap-2 font-bold text-slate-700 text-sm">
+                      <Calendar size={16} className="text-brand-500" /> {fmtDate(dt)}
+                      <Badge tone="brand">{list.length}</Badge>
+                    </div>
+                    <span className={`text-sm font-bold ${net < 0 ? 'text-sky-600' : 'text-amber-600'}`}>{net < 0 ? `− ${inr(-net)}` : inr(net)}</span>
+                  </div>
+                  <div className="divide-y divide-slate-50">
+                    {list.map((l) => {
+                      const isGiven = l.category === 'Advance_Payment';
+                      const amt = isGiven ? (l.advance_payment || 0) : (l.advance_recovery || 0);
+                      return (
+                        <div key={l.id} className="flex items-center gap-3 px-4 py-2.5">
+                          <div className={`h-9 w-9 rounded-lg grid place-items-center ${isGiven ? 'bg-amber-50 text-amber-500' : 'bg-sky-50 text-sky-500'}`}>
+                            {isGiven ? <HandCoins size={16} /> : <TrendingDown size={16} />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-semibold text-slate-700">{isGiven ? 'Advance received' : 'Advance repaid'}</div>
+                            <div className="text-xs text-slate-400">{l.method || 'Cash'}</div>
+                          </div>
+                          <span className={`text-sm font-bold ${isGiven ? 'text-amber-600' : 'text-sky-600'}`}>{isGiven ? '' : '− '}{inr(amt)}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        ) : <Card className="p-6"><EmptyState title="No advances yet" /></Card>
       ) : tab === 'money' ? (
         myLedger.length ? (
           <Card className="divide-y divide-slate-100">

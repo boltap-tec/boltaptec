@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import {
   HandCoins, Plus, Check, X, Clock, Smartphone, Banknote, Send, CheckCircle2, XCircle, Pencil,
-  TrendingDown,
+  TrendingDown, Calendar,
 } from 'lucide-react';
 import { useData } from '../store/useData';
 import { useAuth } from '../store/useAuth';
@@ -61,6 +61,14 @@ export const Advances: React.FC = () => {
       .slice().sort(byDateDesc),
     [ledger, isAdmin, session],
   );
+
+  // Group the advance transactions by date (newest day on top) so the list reads
+  // like the Attendance ledger: a date header with count + the day's net, then rows.
+  const advByDate = useMemo(() => {
+    const m = new Map<string, typeof advTxns>();
+    advTxns.forEach((l) => { if (!m.has(l.date)) m.set(l.date, [] as any); (m.get(l.date) as any).push(l); });
+    return [...m.entries()].sort((a, b) => (a[0] < b[0] ? 1 : -1));
+  }, [advTxns]);
 
   const myEmp = employees.find((e) => e.employee_id === (session?.employee_id || empId));
 
@@ -194,30 +202,48 @@ export const Advances: React.FC = () => {
         <h3 className="font-bold text-slate-700 mb-2 flex items-center gap-2">
           <HandCoins size={17} className="text-brand-500" /> Advance Transactions
         </h3>
-        {advTxns.length === 0 ? (
+        {advByDate.length === 0 ? (
           <Card className="p-6"><EmptyState title="No advance transactions yet" hint="Advances given and recoveries appear here with their dates." /></Card>
         ) : (
-          <Card className="divide-y divide-slate-100">
-            {advTxns.slice(0, 50).map((l) => {
-              const given = l.category === 'Advance_Payment';
-              const amt = given ? (l.advance_payment || 0) : (l.advance_recovery || 0);
-              const rem = displayRemark(l.remark);
+          <div className="space-y-4">
+            {advByDate.slice(0, 60).map(([d, list]) => {
+              const given = list.reduce((s, l) => s + (l.category === 'Advance_Payment' ? (l.advance_payment || 0) : 0), 0);
+              const recovered = list.reduce((s, l) => s + (l.category === 'Advance_Recovery' ? (l.advance_recovery || 0) : 0), 0);
+              const net = given - recovered;
               return (
-                <div key={l.id} className="flex items-center gap-3 p-3">
-                  <div className={`h-9 w-9 rounded-lg grid place-items-center ${given ? 'bg-amber-50 text-amber-600' : 'bg-sky-50 text-sky-600'}`}>
-                    {given ? <HandCoins size={16} /> : <TrendingDown size={16} />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-semibold text-slate-700">
-                      {isAdmin ? `${l.employee_name} · ` : ''}{given ? 'Advance given' : 'Advance recovered'}
+                <Card key={d} className="overflow-hidden">
+                  <div className="flex items-center justify-between px-4 py-2.5 bg-slate-50 border-b border-slate-100">
+                    <div className="flex items-center gap-2 font-bold text-slate-700 text-sm">
+                      <Calendar size={16} className="text-brand-500" /> {fmtDate(d)}
+                      <Badge tone="brand">{list.length}</Badge>
                     </div>
-                    <div className="text-xs text-slate-400">{fmtDate(l.date)} · {l.method || 'Cash'}{rem ? ` · ${rem}` : ''}</div>
+                    <span className={`text-sm font-bold ${net < 0 ? 'text-sky-600' : 'text-amber-600'}`}>{net < 0 ? `− ${inr(-net)}` : inr(net)}</span>
                   </div>
-                  <span className={`text-sm font-bold ${given ? 'text-amber-600' : 'text-sky-600'}`}>{given ? '' : '− '}{inr(amt)}</span>
-                </div>
+                  <div className="divide-y divide-slate-50">
+                    {list.map((l) => {
+                      const isGiven = l.category === 'Advance_Payment';
+                      const amt = isGiven ? (l.advance_payment || 0) : (l.advance_recovery || 0);
+                      const rem = displayRemark(l.remark);
+                      return (
+                        <div key={l.id} className="flex items-center gap-3 px-4 py-2.5">
+                          <div className={`h-9 w-9 rounded-lg grid place-items-center ${isGiven ? 'bg-amber-50 text-amber-600' : 'bg-sky-50 text-sky-600'}`}>
+                            {isGiven ? <HandCoins size={16} /> : <TrendingDown size={16} />}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-semibold text-slate-700">
+                              {isAdmin ? `${l.employee_name} · ` : ''}{isGiven ? 'Advance given' : 'Advance recovered'}
+                            </div>
+                            <div className="text-xs text-slate-400">{l.method || 'Cash'}{rem ? ` · ${rem}` : ''}</div>
+                          </div>
+                          <span className={`text-sm font-bold ${isGiven ? 'text-amber-600' : 'text-sky-600'}`}>{isGiven ? '' : '− '}{inr(amt)}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </Card>
               );
             })}
-          </Card>
+          </div>
         )}
       </div>
 

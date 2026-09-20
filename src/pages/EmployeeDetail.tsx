@@ -7,13 +7,14 @@ import {
 import { useData } from '../store/useData';
 import { Card, Avatar, Badge, Modal, Field, StatCard, EmptyState, StatusDot } from '../components/ui';
 import { UpiPay } from '../components/UpiPay';
+import { StatementButton } from '../components/StatementButton';
 import { inr, fmtDate, today, isGpaySent, displayRemark, byDateDesc } from '../lib/format';
 import { advancePending } from '../lib/calc';
 import { shortDeviceId } from '../lib/device';
 
 export const EmployeeDetail: React.FC = () => {
   const { id } = useParams();
-  const { employees, ledger, attendance, giveAdvance, recoverAdvance, paySalary, updateEmployee, deleteLedgerEntry } = useData();
+  const { employees, ledger, attendance, settings, giveAdvance, recoverAdvance, paySalary, updateEmployee, deleteLedgerEntry } = useData();
   const emp = employees.find((e) => e.employee_id === id);
 
   const [modal, setModal] = useState<null | 'advance' | 'recover' | 'salary'>(null);
@@ -139,7 +140,11 @@ export const EmployeeDetail: React.FC = () => {
 
       <div className="grid lg:grid-cols-3 gap-4">
         <Card className="p-4 lg:col-span-2">
-          <h3 className="font-bold text-slate-800 mb-2">Transaction History</h3>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="font-bold text-slate-800">Transaction History</h3>
+            <StatementButton emp={emp} ledger={ledger} attendance={attendance} settings={settings}
+              label="Statement" className="btn-ghost text-xs px-2.5 py-1.5" iconSize={13} />
+          </div>
           {myLedger.length ? (
             <div className="divide-y divide-slate-100 max-h-[28rem] overflow-y-auto -mx-1 px-1">
               {myLedger.map((l) => {

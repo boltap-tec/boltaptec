@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Wallet, HandCoins, TrendingDown, Clock, Send, Banknote, Smartphone,
   ArrowRight, CheckCircle2, XCircle, Sparkles, CalendarDays,
-  LogIn, LogOut, Camera, Fingerprint, MapPin, Receipt, KeyRound, Sun, Moon,
+  LogIn, LogOut, Camera, Fingerprint, MapPin, Receipt, KeyRound, Sun, Moon, FileText,
 } from 'lucide-react';
 import { useAuth } from '../store/useAuth';
 import { useData } from '../store/useData';
@@ -13,6 +13,7 @@ import { advancePending, salaryForPeriod } from '../lib/calc';
 import { getDeviceId, shortDeviceId } from '../lib/device';
 import { compressImage } from '../lib/image';
 import { PayslipButton } from '../components/PayslipButton';
+import { StatementButton } from '../components/StatementButton';
 import { getTheme, setTheme, type Theme } from '../lib/theme';
 import { getLocation } from '../lib/geo';
 import { useT } from '../lib/i18n';
@@ -276,6 +277,18 @@ export const EmployeeHome: React.FC = () => {
             })}
           </div>
         ) : <EmptyState title="No activity yet" />}
+      </Card>
+
+      {/* My statements — salary, advance & attendance, filterable by date */}
+      <Card className="p-4">
+        <h3 className="font-bold text-slate-800 mb-3 flex items-center gap-2"><FileText size={17} className="text-brand-500" /> My Statements</h3>
+        <div className="grid grid-cols-2 gap-2">
+          <StatementButton emp={emp} ledger={ledger} attendance={attendance} settings={settings} defaultKind="salary" label="Salary" className="btn-ghost text-sm" iconSize={15} />
+          <StatementButton emp={emp} ledger={ledger} attendance={attendance} settings={settings} defaultKind="advance" label="Advance history" className="btn-ghost text-sm" iconSize={15} />
+          <StatementButton emp={emp} ledger={ledger} attendance={attendance} settings={settings} defaultKind="attendance" label="Attendance" className="btn-ghost text-sm" iconSize={15} />
+          <StatementButton emp={emp} ledger={ledger} attendance={attendance} settings={settings} defaultKind="full" label="Full statement" className="btn-ghost text-sm" iconSize={15} />
+        </div>
+        <p className="text-[11px] text-slate-400 mt-2">Choose a type & date range, then download as PDF or Excel.</p>
       </Card>
 
       <div className="grid grid-cols-2 gap-2">

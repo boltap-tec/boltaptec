@@ -10,7 +10,8 @@ import { PayslipButton } from '../components/PayslipButton';
 import { inr, today, fmtDate } from '../lib/format';
 import { salaryForPeriod, advancePending } from '../lib/calc';
 import { downloadBackup } from '../lib/backup';
-import type { SalaryDetail } from '../types';
+import * as XLSX from 'xlsx';
+import type { SalaryDetail, SalaryPosting } from '../types';
 
 const weekAgo = () => { const d = new Date(); d.setDate(d.getDate() - 6); return d.toISOString().slice(0, 10); };
 
@@ -68,6 +69,40 @@ export const Salary: React.FC = () => {
     setRecover(String(suggested));
     setCashNow(String(Math.max(0, remaining - suggested)));
     setMethod('Cash'); setPaid(null); setShowUpi(false); setPayDate(today());
+  };
+
+  // Advance given to a worker within a specific period (the payroll week).
+  const advGivenInPeriod = (employeeId: string, from: string, to: string) =>
+    ledger
+      .filter((l) => l.category === 'Advance_Payment' && l.employee_id === employeeId && l.date >= from && l.date <= to)
+      .reduce((s, l) => s + (l.advance_payment || 0), 0);
+
+  // Download one posted payroll (all workers) as an Excel sheet.
+  const downloadPostingExcel = (p: SalaryPosting, rows: SalaryDetail[]) => {
+    const data = rows.map((d) => ({
+      Employee: d.employee_name,
+      Period: `${d.from_date} to ${d.to_date}`,
+      Hours: d.total_hours,
+      'OT hours': d.extra_time,
+      Gross: d.salary_amount,
+      'Advance given (week)': advGivenInPeriod(d.employee_id, p.from_date, p.to_date),
+      'Advance recovered': d.advance_recovered,
+      'Salary paid': d.salary_given,
+      Remaining: Math.max(0, (d.salary_amount - d.advance_recovered) - d.salary_given),
+      Status: rowStatus(d),
+    }));
+    const totalRow = {
+      Employee: 'TOTAL', Period: '', Hours: rows.reduce((s, d) => s + d.total_hours, 0), 'OT hours': rows.reduce((s, d) => s + d.extra_time, 0),
+      Gross: rows.reduce((s, d) => s + d.salary_amount, 0),
+      'Advance given (week)': rows.reduce((s, d) => s + advGivenInPeriod(d.employee_id, p.from_date, p.to_date), 0),
+      'Advance recovered': rows.reduce((s, d) => s + d.advance_recovered, 0),
+      'Salary paid': rows.reduce((s, d) => s + d.salary_given, 0),
+      Remaining: rows.reduce((s, d) => s + Math.max(0, (d.salary_amount - d.advance_recovered) - d.salary_given), 0),
+      Status: '',
+    };
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet([...data, totalRow]), 'Payroll');
+    XLSX.writeFile(wb, `Payroll_${p.from_date}_to_${p.to_date}.xlsx`);
   };
 
   // Advance given to this worker since their last salary payment.
@@ -168,6 +203,7 @@ export const Salary: React.FC = () => {
             const gross = rows.reduce((s, d) => s + d.salary_amount, 0);
             const paidSum = rows.reduce((s, d) => s + d.salary_given, 0);
             const recSum = rows.reduce((s, d) => s + d.advance_recovered, 0);
+            const advGivenSum = rows.reduce((s, d) => s + advGivenInPeriod(d.employee_id, p.from_date, p.to_date), 0);
             const remaining = rows.reduce((s, d) => s + Math.max(0, (d.salary_amount - d.advance_recovered) - d.salary_given), 0);
             const allPaid = rows.every((d) => rowStatus(d) === 'Paid');
             return (
@@ -179,8 +215,11 @@ export const Salary: React.FC = () => {
                   </div>
                   <div className="flex items-center gap-3 text-xs">
                     <span className="text-slate-400">Gross <b className="text-slate-600">{inr(gross)}</b></span>
-                    <span className="text-emerald-500">Paid <b>{inr(paidSum)}</b></span>
+                    <span className="text-amber-500">Adv given <b>{inr(advGivenSum)}</b></span>
                     <span className="text-sky-500">Recovered <b>{inr(recSum)}</b></span>
+                    <span className="text-emerald-500">Paid <b>{inr(paidSum)}</b></span>
+                    <button onClick={() => downloadPostingExcel(p, rows)}
+                      className="p-1.5 rounded-lg text-emerald-500 hover:bg-emerald-50" title="Download this payroll (Excel)"><FileSpreadsheet size={15} /></button>
                     <button onClick={() => { if (confirm('Delete this payroll? Attendance days return to unpaid and balances roll back.')) deletePosting(p.id); }}
                       className="p-1.5 rounded-lg text-rose-300 hover:bg-rose-50"><Trash2 size={14} /></button>
                   </div>
@@ -193,6 +232,7 @@ export const Salary: React.FC = () => {
                       <tr className="text-left text-[11px] text-slate-400 uppercase font-semibold border-b border-slate-100">
                         <th className="px-4 py-2">Employee</th>
                         <th className="px-2 py-2 text-right">Gross</th>
+                        <th className="px-2 py-2 text-right">Adv Given</th>
                         <th className="px-2 py-2 text-right">Recovered</th>
                         <th className="px-2 py-2 text-right">Paid</th>
                         <th className="px-2 py-2 text-right">Remaining</th>
@@ -219,6 +259,7 @@ export const Salary: React.FC = () => {
                               </div>
                             </td>
                             <td className="px-2 py-2.5 text-right font-semibold text-slate-600">{inr(d.salary_amount)}</td>
+                            <td className="px-2 py-2.5 text-right text-amber-600">{(() => { const g = advGivenInPeriod(d.employee_id, p.from_date, p.to_date); return g > 0 ? inr(g) : '—'; })()}</td>
                             <td className="px-2 py-2.5 text-right text-sky-600">{d.advance_recovered > 0 ? inr(d.advance_recovered) : '—'}</td>
                             <td className="px-2 py-2.5 text-right text-emerald-600">{d.salary_given > 0 ? inr(d.salary_given) : '—'}</td>
                             <td className="px-2 py-2.5 text-right font-bold text-slate-700">{rem > 0 ? inr(rem) : '—'}</td>

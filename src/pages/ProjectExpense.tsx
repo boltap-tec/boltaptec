@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
-  Receipt, Send, Clock, CheckCircle2, XCircle, Check, X, Pencil, Banknote, Smartphone, HandCoins,
+  Receipt, Send, Clock, CheckCircle2, XCircle, Check, X, Pencil, Banknote, Smartphone, HandCoins, Plus, Calendar,
 } from 'lucide-react';
 import { useData } from '../store/useData';
 import { useAuth } from '../store/useAuth';
@@ -15,14 +15,17 @@ export const ProjectExpense: React.FC = () => {
   const isAdmin = session?.role === 'admin';
   const {
     employees, projects, expenditureCategories, expenditureRequests, settings,
-    createExpenditureRequest, updateExpenditureRequest, approveExpenditureRequest, rejectExpenditureRequest, addProject,
+    createExpenditureRequest, updateExpenditureRequest, approveExpenditureRequest, rejectExpenditureRequest, addProject, giveExpenditure,
   } = useData();
+  const activeEmployees = employees.filter((e) => e.status === 'Active');
 
   const visibleCats = expenditureCategories.filter((c) => c.visible);
   const activeProjects = projects.filter((p) => p.status === 'Running');
   const planActive = settings.today_plan_date === today() ? settings.today_project_id : null;
 
   const [reqOpen, setReqOpen] = useState(false);
+  const [directOpen, setDirectOpen] = useState(false);
+  const [df, setDf] = useState({ employee_id: '', project_id: '', category_id: '', amount: '', note: '', method: 'UPI' as 'Cash' | 'UPI', date: today() });
   const [editReq, setEditReq] = useState<ExpenditureRequest | null>(null);
   const [payFor, setPayFor] = useState<ExpenditureRequest | null>(null);
   const [payMethod, setPayMethod] = useState<'Cash' | 'UPI'>('UPI');
@@ -87,6 +90,36 @@ export const ProjectExpense: React.FC = () => {
 
   const totalPending = pending.reduce((s, r) => s + r.amount, 0);
 
+  const openDirect = () => {
+    setDf({ employee_id: '', project_id: planActive || activeProjects[0]?.project_id || '', category_id: visibleCats[0]?.category_id || '', amount: '', note: '', method: 'UPI', date: today() });
+    setDirectOpen(true);
+  };
+  const submitDirect = () => {
+    const amt = Number(df.amount);
+    const e = employees.find((x) => x.employee_id === df.employee_id);
+    const proj = projects.find((p) => p.project_id === df.project_id);
+    const cat = visibleCats.find((c) => c.category_id === df.category_id) || visibleCats[0];
+    if (!amt || amt <= 0 || !e || !proj || !cat) return;
+    giveExpenditure({
+      employee_id: e.employee_id, employee_name: e.name,
+      project_id: proj.project_id, project_name: proj.name,
+      category_id: cat.category_id, category_name: cat.name,
+      amount: amt, note: df.note.trim() || null, paid_method: df.method, date: df.date,
+    });
+    setDirectOpen(false);
+  };
+
+  // History grouped by decision date (newest day on top), like the ledger.
+  const decidedByDate = useMemo(() => {
+    const sorted = [...decided].sort((a, b) => {
+      const ka = (a.decided_at || a.created_at || ''); const kb = (b.decided_at || b.created_at || '');
+      return ka < kb ? 1 : ka > kb ? -1 : 0;
+    });
+    const m = new Map<string, ExpenditureRequest[]>();
+    sorted.forEach((r) => { const k = (r.decided_at || r.created_at || '').slice(0, 10); if (!m.has(k)) m.set(k, []); m.get(k)!.push(r); });
+    return [...m.entries()].sort((a, b) => (a[0] < b[0] ? 1 : -1)).slice(0, 60);
+  }, [decided]);
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
@@ -94,7 +127,10 @@ export const ProjectExpense: React.FC = () => {
           <h1 className="text-2xl font-extrabold text-slate-800">Project Expenditure</h1>
           <p className="text-slate-400 text-sm">{isAdmin ? 'Approve worker expenses → added to the project' : 'Request money you spent on a project'}</p>
         </div>
-        <button onClick={openReq} className="btn-primary"><Send size={16} /> <span className="hidden sm:inline">Project Request</span></button>
+        <div className="flex gap-2">
+          <button onClick={openReq} className="btn-ghost"><Send size={16} /> <span className="hidden sm:inline">Request</span></button>
+          {isAdmin && <button onClick={openDirect} className="btn-primary"><Plus size={16} /> <span className="hidden sm:inline">Give Expense</span></button>}
+        </div>
       </div>
 
       {planActive && (
@@ -152,25 +188,41 @@ export const ProjectExpense: React.FC = () => {
         )}
       </div>
 
-      {/* History */}
-      {decided.length > 0 && (
+      {/* History — grouped by date */}
+      {decidedByDate.length > 0 && (
         <div>
           <h3 className="font-bold text-slate-700 mb-2">History</h3>
-          <Card className="divide-y divide-slate-100">
-            {decided.slice(0, 40).map((r) => (
-              <div key={r.id} className="flex items-center gap-3 p-3">
-                <Avatar name={r.employee_name} size={34} />
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-slate-700">{r.employee_name} · {r.category_name}</div>
-                  <div className="text-xs text-slate-400 truncate">{r.project_name}{r.note ? ` · ${r.note}` : ''} · {fmtDate(r.decided_at)}</div>
-                </div>
-                <span className="text-sm font-bold text-slate-600">{inr(r.amount)}</span>
-                {r.status === 'Approved'
-                  ? <Badge tone="green"><CheckCircle2 size={12} /> Paid {r.paid_method || ''}</Badge>
-                  : <Badge tone="red"><XCircle size={12} /> Rejected</Badge>}
-              </div>
-            ))}
-          </Card>
+          <div className="space-y-4">
+            {decidedByDate.map(([day, list]) => {
+              const paid = list.filter((r) => r.status === 'Approved').reduce((s, r) => s + r.amount, 0);
+              return (
+                <Card key={day} className="overflow-hidden">
+                  <div className="flex items-center justify-between px-4 py-2.5 bg-slate-50 border-b border-slate-100">
+                    <div className="flex items-center gap-2 font-bold text-slate-700 text-sm">
+                      <Calendar size={16} className="text-brand-500" /> {fmtDate(day)}
+                      <Badge tone="brand">{list.length}</Badge>
+                    </div>
+                    <span className="text-sm font-bold text-emerald-600">{inr(paid)}</span>
+                  </div>
+                  <div className="divide-y divide-slate-50">
+                    {list.map((r) => (
+                      <div key={r.id} className="flex items-center gap-3 px-4 py-2.5">
+                        <Avatar name={r.employee_name} size={34} />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-semibold text-slate-700">{r.employee_name} · {r.category_name}</div>
+                          <div className="text-xs text-slate-400 truncate">{r.project_name || 'No project'}{r.note ? ` · ${r.note}` : ''}{r.admin_note === 'Direct entry' ? ' · direct' : ''}</div>
+                        </div>
+                        <span className="text-sm font-bold text-slate-600">{inr(r.amount)}</span>
+                        {r.status === 'Approved'
+                          ? <Badge tone="green"><CheckCircle2 size={12} /> Paid {r.paid_method || ''}</Badge>
+                          : <Badge tone="red"><XCircle size={12} /> Rejected</Badge>}
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -198,6 +250,48 @@ export const ProjectExpense: React.FC = () => {
           <div className="flex gap-2 pt-1">
             <button onClick={() => setReqOpen(false)} className="btn-ghost flex-1">Cancel</button>
             <button onClick={submit} disabled={!f.amount} className="btn-primary flex-1"><Send size={16} /> Send Request</button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Give expense directly (admin) */}
+      <Modal open={directOpen} onClose={() => setDirectOpen(false)} title="Give Project Expense">
+        <div className="space-y-3">
+          <div className="rounded-xl bg-emerald-50 text-emerald-700 px-3 py-2 text-sm">Records a project expense & reimbursement directly — no worker request needed.</div>
+          <Field label="Worker (who spent / is reimbursed)">
+            <select className="input" value={df.employee_id} onChange={(e) => setDf({ ...df, employee_id: e.target.value })}>
+              <option value="">Select worker…</option>
+              {activeEmployees.map((e) => <option key={e.employee_id} value={e.employee_id}>{e.name}</option>)}
+            </select>
+          </Field>
+          <Field label="Project">
+            <select className="input" value={df.project_id} onChange={(e) => setDf({ ...df, project_id: e.target.value })}>
+              <option value="">Select project…</option>
+              {activeProjects.map((p) => <option key={p.project_id} value={p.project_id}>{p.name}{p.project_id === planActive ? ' (today)' : ''}</option>)}
+            </select>
+          </Field>
+          <Field label="Category">
+            <select className="input" value={df.category_id} onChange={(e) => setDf({ ...df, category_id: e.target.value })}>
+              {visibleCats.map((c) => <option key={c.category_id} value={c.category_id}>{c.name}</option>)}
+            </select>
+          </Field>
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Amount (₹)"><input className="input text-lg font-bold" inputMode="numeric" value={df.amount} onChange={(e) => setDf({ ...df, amount: e.target.value })} placeholder="0" /></Field>
+            <Field label="Date"><input type="date" className="input" value={df.date} onChange={(e) => setDf({ ...df, date: e.target.value })} /></Field>
+          </div>
+          <Field label="Note"><input className="input" value={df.note} onChange={(e) => setDf({ ...df, note: e.target.value })} placeholder="e.g. Tea, Lunch, materials" /></Field>
+          <Field label="Paid by">
+            <div className="grid grid-cols-2 gap-2">
+              {(['UPI', 'Cash'] as const).map((m) => (
+                <button key={m} onClick={() => setDf({ ...df, method: m })} className={`btn ${df.method === m ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                  {m === 'Cash' ? <Banknote size={16} /> : <Smartphone size={16} />} {m}
+                </button>
+              ))}
+            </div>
+          </Field>
+          <div className="flex gap-2 pt-1">
+            <button onClick={() => setDirectOpen(false)} className="btn-ghost flex-1">Cancel</button>
+            <button onClick={submitDirect} disabled={!df.employee_id || !df.project_id || !df.amount} className="btn-primary flex-1"><HandCoins size={16} /> Record Expense</button>
           </div>
         </div>
       </Modal>

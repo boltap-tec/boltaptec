@@ -218,6 +218,22 @@ export interface ExpenditureRequest {
   paid_method: 'Cash' | 'UPI' | null;   // how the worker was reimbursed
 }
 
+// An audit trail of destructive/important actions (currently deletions of
+// financial records), so the owner can see what was removed and by whom.
+export interface ActivityLogEntry {
+  id: string;
+  at: string;                 // ISO timestamp of the action
+  action: 'delete';           // room to grow (edit/create later)
+  entity: 'ledger' | 'posting' | 'attendance' | 'employee';
+  actor: string;              // who performed it (session name)
+  employee_id: string | null;
+  employee_name: string | null;
+  amount: number | null;      // money involved, when relevant
+  category: string | null;    // e.g. Salary | Advance_Payment | Advance_Recovery
+  date: string | null;        // the date of the deleted record
+  detail: string;             // human-readable summary
+}
+
 export interface Settings {
   business_name: string;
   logo?: string | null;       // company logo (data URL) shown by the app name

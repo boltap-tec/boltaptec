@@ -3,8 +3,9 @@ import { persist } from 'zustand/middleware';
 import type {
   Employee, Attendance, LedgerEntry, SalaryDetail, SalaryPosting,
   AdvanceRequest, Settings, Project, ExpenditureCategory, ProjectExpenditure, ProjectPayment,
-  ExpenditureRequest,
+  ExpenditureRequest, ActivityLogEntry,
 } from '../types';
+import { useAuth } from './useAuth';
 import {
   seedEmployees, seedAttendance, seedLedger, seedSalaryDetails,
   seedPostings, seedAdvanceRequests, defaultSettings,
@@ -25,7 +26,12 @@ interface DataState {
   projectExpenditure: ProjectExpenditure[];
   projectPayments: ProjectPayment[];
   expenditureRequests: ExpenditureRequest[];
+  activityLog: ActivityLogEntry[];
   settings: Settings;
+
+  // activity log (deletion audit trail, viewable by the owner)
+  logActivity: (entry: Omit<ActivityLogEntry, 'id' | 'at' | 'actor'>) => void;
+  clearActivityLog: () => void;
 
   // projects
   addProject: (p: Partial<Project> & { name: string }) => Project;
@@ -43,6 +49,9 @@ interface DataState {
   updateExpenditureRequest: (id: string, patch: Partial<Pick<ExpenditureRequest, 'amount' | 'category_id' | 'category_name' | 'project_id' | 'project_name' | 'note'>>) => void;
   approveExpenditureRequest: (id: string, decidedBy: string, paidMethod: 'Cash' | 'UPI', note?: string) => void;
   rejectExpenditureRequest: (id: string, decidedBy: string, note?: string) => void;
+  // Admin records a project expense directly (no worker request) — adds it to the
+  // project and stores an already-approved entry so it shows in the history.
+  giveExpenditure: (r: { employee_id: string; employee_name: string; project_id: string; project_name: string; category_id: string; category_name: string; amount: number; note?: string | null; paid_method: 'Cash' | 'UPI'; date?: string }) => void;
 
   // employees
   addEmployee: (e: Partial<Employee> & { name: string; daily_wage: number }) => Employee;
@@ -108,7 +117,18 @@ export const useData = create<DataState>()(
       projectExpenditure: [],
       projectPayments: [],
       expenditureRequests: [],
+      activityLog: [],
       settings: defaultSettings(),
+
+      // Record an action in the audit trail (newest first). The actor is taken
+      // from the current session so the owner can see who removed a record.
+      logActivity: (entry) => {
+        const actor = useAuth.getState().session?.name || 'Admin';
+        const row: ActivityLogEntry = { ...entry, id: uid('act_'), at: new Date().toISOString(), actor };
+        set({ activityLog: [row, ...get().activityLog].slice(0, 500) });
+      },
+
+      clearActivityLog: () => set({ activityLog: [] }),
 
       addProject: (p) => {
         const n = get().projects.length + 1;
@@ -231,6 +251,30 @@ export const useData = create<DataState>()(
           ),
         }),
 
+      giveExpenditure: (r) => {
+        const now = new Date().toISOString();
+        const date = r.date || today();
+        get().addExpenditure({
+          project_id: r.project_id, project_name: r.project_name, date,
+          category_id: r.category_id, category_name: r.category_name,
+          description: r.note || `${r.employee_name} expense`, amount: r.amount,
+          remark: `Reimbursed to ${r.employee_name} (${r.paid_method})`, images: null, source: 'worker_request',
+        });
+        set({
+          expenditureRequests: [
+            {
+              id: uid('exr_'), employee_id: r.employee_id, employee_name: r.employee_name,
+              project_id: r.project_id, project_name: r.project_name,
+              category_id: r.category_id, category_name: r.category_name,
+              amount: r.amount, note: r.note ?? null, status: 'Approved',
+              created_at: now, decided_at: now,
+              decided_by: useAuth.getState().session?.name || 'Admin', admin_note: 'Direct entry', paid_method: r.paid_method,
+            },
+            ...get().expenditureRequests,
+          ],
+        });
+      },
+
       addEmployee: (e) => {
         const emps = get().employees;
         const n = emps.length + 1;
@@ -264,8 +308,15 @@ export const useData = create<DataState>()(
           ),
         }),
 
-      deleteEmployee: (id) =>
-        set({ employees: get().employees.filter((e) => e.employee_id !== id) }),
+      deleteEmployee: (id) => {
+        const e = get().employees.find((x) => x.employee_id === id);
+        if (e) get().logActivity({
+          action: 'delete', entity: 'employee', category: null,
+          employee_id: e.employee_id, employee_name: e.name, amount: null, date: today(),
+          detail: `Deleted employee ${e.name}`,
+        });
+        set({ employees: get().employees.filter((x) => x.employee_id !== id) });
+      },
 
       addAttendance: (a) => {
         const { salary_amount, extra_time } = computeAttendanceSalary(a.total_hours, a.daily_wage);
@@ -289,8 +340,15 @@ export const useData = create<DataState>()(
           }),
         }),
 
-      deleteAttendance: (id) =>
-        set({ attendance: get().attendance.filter((a) => a.id !== id) }),
+      deleteAttendance: (id) => {
+        const a = get().attendance.find((x) => x.id === id);
+        if (a) get().logActivity({
+          action: 'delete', entity: 'attendance', category: null,
+          employee_id: a.employee_id, employee_name: a.employee_name, amount: a.salary_amount, date: a.date,
+          detail: `Deleted attendance for ${a.employee_name} (${fmtDate(a.date)}, ${a.total_hours}h · ₹${(a.salary_amount || 0).toLocaleString('en-IN')})`,
+        });
+        set({ attendance: get().attendance.filter((x) => x.id !== id) });
+      },
 
       // Worker self-service Open Attendance. Creates an open row (no time-out yet)
       // in 'pending' state — the admin reviews & posts it later.
@@ -410,6 +468,13 @@ export const useData = create<DataState>()(
             get().updateEmployee(emp.employee_id, { salary_given: Math.max(0, emp.salary_given - (l.salary_payment_amount || 0)) });
           }
         }
+        const amt = l.total_amount_given || l.salary_payment_amount || l.advance_payment || l.advance_recovery || 0;
+        const kind = l.category.replace(/_/g, ' ');
+        get().logActivity({
+          action: 'delete', entity: 'ledger', category: l.category,
+          employee_id: l.employee_id, employee_name: l.employee_name, amount: amt, date: l.date,
+          detail: `Deleted ${kind} of ₹${amt.toLocaleString('en-IN')} for ${l.employee_name} (${fmtDate(l.date)})`,
+        });
         set({ ledger: get().ledger.filter((x) => x.id !== id) });
       },
 
@@ -558,11 +623,20 @@ export const useData = create<DataState>()(
       },
 
       deletePosting: (postingId) => {
+        const posting = get().postings.find((x) => x.id === postingId);
         const details = get().salaryDetails.filter((d) => {
           const p = get().postings.find((x) => x.id === postingId);
           return p && d.from_date === p.from_date && d.to_date === p.to_date;
         });
         const empIds = new Set(details.map((d) => d.employee_id));
+        if (posting) {
+          const gross = details.reduce((s, d) => s + d.salary_amount, 0);
+          get().logActivity({
+            action: 'delete', entity: 'posting', category: 'Salary',
+            employee_id: null, employee_name: null, amount: gross, date: posting.to_date,
+            detail: `Deleted payroll ${fmtDate(posting.from_date)} → ${fmtDate(posting.to_date)} (${details.length} workers · gross ₹${gross.toLocaleString('en-IN')})`,
+          });
+        }
         // Release the claimed attendance days back to unpaid.
         set({
           attendance: get().attendance.map((a) => (a.salary_id === postingId ? { ...a, paid: false, salary_id: null } : a)),
@@ -594,6 +668,7 @@ export const useData = create<DataState>()(
           projectExpenditure: seedProjectExpenditure(),
           projectPayments: seedProjectPayments(),
           expenditureRequests: [],
+          activityLog: [],
           settings: defaultSettings(),
         }),
     }),
@@ -611,6 +686,7 @@ export const useData = create<DataState>()(
           state.projectPayments = state.projectPayments || seedProjectPayments();
         }
         if (!state.expenditureRequests) state.expenditureRequests = [];
+        if (!state.activityLog) state.activityLog = [];
       },
     },
   ),

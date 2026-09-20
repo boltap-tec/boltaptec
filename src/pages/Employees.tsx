@@ -25,6 +25,9 @@ export const Employees: React.FC = () => {
     (e.name.toLowerCase().includes(q.toLowerCase()) || (e.phone || '').includes(q)),
   ), [employees, q, filter]);
 
+  const activeList = filtered.filter((e) => e.status === 'Active');
+  const inactiveList = filtered.filter((e) => e.status !== 'Active');
+
   const openAdd = () => { setEditing(null); setForm(blank); setPhoto(null); setModal(true); };
   const openEdit = (e: Employee) => {
     setEditing(e);
@@ -63,6 +66,57 @@ export const Employees: React.FC = () => {
     if (confirmProtected(`Delete ${e.name}? This cannot be undone.`)) deleteEmployee(e.employee_id);
   };
 
+  // One grid of employee cards — reused for the flat list and the grouped sections.
+  const grid = (list: Employee[]) => (
+    <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
+      {list.map((e) => {
+        const ap = advancePending(e);
+        return (
+          <Card key={e.employee_id} className="p-4 hover:shadow-soft transition group">
+            <div className="flex items-start gap-3">
+              <Avatar name={e.name} src={e.photo} size={48} />
+              <div className="flex-1 min-w-0">
+                <Link to={`/employees/${e.employee_id}`} className="font-bold text-slate-800 hover:text-brand-600 flex items-center gap-1.5 truncate">
+                  {e.name}
+                </Link>
+                <div className="flex items-center gap-1.5 text-xs text-slate-400 mt-0.5">
+                  <StatusDot active={e.status === 'Active'} />
+                  {e.status === 'Active' ? 'Active' : 'Inactive'} · {inr(e.daily_wage)}/day
+                </div>
+              </div>
+              <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition">
+                <button onClick={() => openEdit(e)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400"><Pencil size={15} /></button>
+                <button onClick={() => remove(e)} className="p-1.5 rounded-lg hover:bg-rose-50 text-rose-400"><Trash2 size={15} /></button>
+              </div>
+            </div>
+            <div className="mt-3 space-y-1 text-xs text-slate-500">
+              {e.phone && <div className="flex items-center gap-1.5"><Phone size={13} /> {e.phone}</div>}
+              {e.address && <div className="flex items-center gap-1.5"><MapPin size={13} /> {e.address}</div>}
+            </div>
+            <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between">
+              <div>
+                <div className="text-[10px] text-slate-400 font-semibold uppercase">Advance Due</div>
+                <div className={`font-bold ${ap > 0 ? 'text-rose-600' : 'text-slate-400'}`}>{inr(ap)}</div>
+              </div>
+              <Link to={`/employees/${e.employee_id}`} className="text-brand-600 flex items-center text-sm font-semibold">
+                Details <ChevronRight size={16} />
+              </Link>
+            </div>
+          </Card>
+        );
+      })}
+    </div>
+  );
+
+  // Section header with a count badge (used for the grouped All view).
+  const sectionHead = (label: string, n: number, dot: boolean) => (
+    <div className="flex items-center gap-2 mb-2 mt-1">
+      <StatusDot active={dot} />
+      <h2 className="font-bold text-slate-700">{label}</h2>
+      <span className="text-xs font-semibold text-slate-400 bg-slate-100 rounded-full px-2 py-0.5">{n}</span>
+    </div>
+  );
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
@@ -90,46 +144,16 @@ export const Employees: React.FC = () => {
 
       {filtered.length === 0 ? (
         <Card className="p-6"><EmptyState title="No employees found" hint="Try a different search or add a new employee." /></Card>
-      ) : (
-        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          {filtered.map((e) => {
-            const ap = advancePending(e);
-            return (
-              <Card key={e.employee_id} className="p-4 hover:shadow-soft transition group">
-                <div className="flex items-start gap-3">
-                  <Avatar name={e.name} src={e.photo} size={48} />
-                  <div className="flex-1 min-w-0">
-                    <Link to={`/employees/${e.employee_id}`} className="font-bold text-slate-800 hover:text-brand-600 flex items-center gap-1.5 truncate">
-                      {e.name}
-                    </Link>
-                    <div className="flex items-center gap-1.5 text-xs text-slate-400 mt-0.5">
-                      <StatusDot active={e.status === 'Active'} />
-                      {e.status === 'Active' ? 'Active' : 'Inactive'} · {inr(e.daily_wage)}/day
-                    </div>
-                  </div>
-                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition">
-                    <button onClick={() => openEdit(e)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-400"><Pencil size={15} /></button>
-                    <button onClick={() => remove(e)} className="p-1.5 rounded-lg hover:bg-rose-50 text-rose-400"><Trash2 size={15} /></button>
-                  </div>
-                </div>
-                <div className="mt-3 space-y-1 text-xs text-slate-500">
-                  {e.phone && <div className="flex items-center gap-1.5"><Phone size={13} /> {e.phone}</div>}
-                  {e.address && <div className="flex items-center gap-1.5"><MapPin size={13} /> {e.address}</div>}
-                </div>
-                <div className="mt-3 pt-3 border-t border-slate-100 flex items-center justify-between">
-                  <div>
-                    <div className="text-[10px] text-slate-400 font-semibold uppercase">Advance Due</div>
-                    <div className={`font-bold ${ap > 0 ? 'text-rose-600' : 'text-slate-400'}`}>{inr(ap)}</div>
-                  </div>
-                  <Link to={`/employees/${e.employee_id}`} className="text-brand-600 flex items-center text-sm font-semibold">
-                    Details <ChevronRight size={16} />
-                  </Link>
-                </div>
-              </Card>
-            );
-          })}
+      ) : filter === 'all' ? (
+        <div className="space-y-4">
+          {activeList.length > 0 && (
+            <div>{sectionHead('Active', activeList.length, true)}{grid(activeList)}</div>
+          )}
+          {inactiveList.length > 0 && (
+            <div>{sectionHead('Inactive', inactiveList.length, false)}{grid(inactiveList)}</div>
+          )}
         </div>
-      )}
+      ) : grid(filtered)}
 
       <Modal open={modal} onClose={() => setModal(false)} title={editing ? 'Edit Employee' : 'Add Employee'}>
         <div className="space-y-3">

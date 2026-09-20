@@ -1,14 +1,14 @@
 import React, { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Users, Wallet, HandCoins, TrendingUp, ArrowUpRight, Clock, CheckCircle2,
+  Users, Wallet, HandCoins, TrendingUp, ArrowUpRight, Clock, Calendar, TrendingDown, Banknote,
 } from 'lucide-react';
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from 'recharts';
 import { useData } from '../store/useData';
 import { StatCard, Card, Badge, Avatar, EmptyState } from '../components/ui';
-import { inr, fmtDate, fmtDateShort } from '../lib/format';
+import { inr, fmtDate, fmtDateShort, byDateDesc } from '../lib/format';
 import { advancePending } from '../lib/calc';
 
 export const Dashboard: React.FC = () => {
@@ -43,7 +43,15 @@ export const Dashboard: React.FC = () => {
     [employees],
   );
 
-  const recent = ledger.slice(0, 6);
+  // Group ledger rows by date (newest day on top), like the Attendance ledger.
+  const groupByDate = (rows: typeof ledger) => {
+    const m = new Map<string, typeof ledger>();
+    rows.forEach((l) => { if (!m.has(l.date)) m.set(l.date, [] as any); (m.get(l.date) as any).push(l); });
+    return [...m.entries()].sort((a, b) => (a[0] < b[0] ? 1 : -1)).slice(0, 6);
+  };
+  // Advances (given + recovered) and Salary each get their own date-grouped card.
+  const advGroups = useMemo(() => groupByDate([...ledger].filter((l) => l.category !== 'Salary').sort(byDateDesc)), [ledger]);
+  const salGroups = useMemo(() => groupByDate([...ledger].filter((l) => l.category === 'Salary').sort(byDateDesc)), [ledger]);
 
   return (
     <div className="space-y-5">
@@ -132,33 +140,91 @@ export const Dashboard: React.FC = () => {
         </Card>
       </div>
 
-      <Card className="p-4">
-        <div className="flex items-center justify-between mb-3">
-          <h3 className="font-bold text-slate-800">Recent Transactions</h3>
-          <Link to="/ledger" className="text-sm font-semibold text-brand-600">View all</Link>
-        </div>
-        {recent.length ? (
-          <div className="divide-y divide-slate-100">
-            {recent.map((l) => {
-              const amt = l.total_amount_given || l.salary_payment_amount || l.advance_payment || l.advance_recovery || 0;
-              const tone = l.category === 'Salary' ? 'green' : l.category === 'Advance_Recovery' ? 'blue' : 'amber';
-              return (
-                <div key={l.id} className="flex items-center gap-3 py-2.5">
-                  <div className="h-9 w-9 rounded-lg bg-slate-100 grid place-items-center">
-                    {l.category === 'Salary' ? <CheckCircle2 size={17} className="text-emerald-500" /> : <HandCoins size={17} className="text-amber-500" />}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-semibold text-slate-700 truncate">{l.employee_name}</div>
-                    <div className="text-xs text-slate-400">{fmtDate(l.date)} · {l.method || 'Cash'}</div>
-                  </div>
-                  <Badge tone={tone as any}>{l.category.replace('_', ' ')}</Badge>
-                  <span className="text-sm font-bold text-slate-700 w-20 text-right">{inr(amt)}</span>
-                </div>
-              );
-            })}
+      <div className="grid lg:grid-cols-2 gap-4">
+        {/* Advances given & recovered — date-grouped */}
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-bold text-slate-800 flex items-center gap-2"><HandCoins size={17} className="text-amber-500" /> Advances</h3>
+            <Link to="/advances" className="text-sm font-semibold text-brand-600">View all</Link>
           </div>
-        ) : <EmptyState title="No transactions yet" />}
-      </Card>
+          {advGroups.length ? (
+            <div className="space-y-4">
+              {advGroups.map(([d, list]) => {
+                const given = list.reduce((s, l) => s + (l.category === 'Advance_Payment' ? (l.advance_payment || 0) : 0), 0);
+                const recovered = list.reduce((s, l) => s + (l.category === 'Advance_Recovery' ? (l.advance_recovery || 0) : 0), 0);
+                const net = given - recovered;
+                return (
+                  <Card key={d} className="overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-2.5 bg-slate-50 border-b border-slate-100">
+                      <div className="flex items-center gap-2 font-bold text-slate-700 text-sm">
+                        <Calendar size={16} className="text-brand-500" /> {fmtDate(d)}
+                        <Badge tone="brand">{list.length}</Badge>
+                      </div>
+                      <span className={`text-sm font-bold ${net < 0 ? 'text-sky-600' : 'text-amber-600'}`}>{net < 0 ? `− ${inr(-net)}` : inr(net)}</span>
+                    </div>
+                    <div className="divide-y divide-slate-50">
+                      {list.map((l) => {
+                        const isGiven = l.category === 'Advance_Payment';
+                        const amt = isGiven ? (l.advance_payment || 0) : (l.advance_recovery || 0);
+                        return (
+                          <div key={l.id} className="flex items-center gap-3 px-4 py-2.5">
+                            <div className={`h-9 w-9 rounded-lg grid place-items-center ${isGiven ? 'bg-amber-50 text-amber-500' : 'bg-sky-50 text-sky-500'}`}>
+                              {isGiven ? <HandCoins size={16} /> : <TrendingDown size={16} />}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-semibold text-slate-700 truncate">{l.employee_name}</div>
+                              <div className="text-xs text-slate-400">{isGiven ? 'Advance given' : 'Recovered'} · {l.method || 'Cash'}</div>
+                            </div>
+                            <span className={`text-sm font-bold ${isGiven ? 'text-amber-600' : 'text-sky-600'}`}>{isGiven ? '' : '− '}{inr(amt)}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          ) : <Card className="p-4"><EmptyState title="No advances yet" /></Card>}
+        </div>
+
+        {/* Salary paid — date-grouped */}
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-bold text-slate-800 flex items-center gap-2"><Banknote size={17} className="text-emerald-500" /> Salary Paid</h3>
+            <Link to="/ledger" className="text-sm font-semibold text-brand-600">View all</Link>
+          </div>
+          {salGroups.length ? (
+            <div className="space-y-4">
+              {salGroups.map(([d, list]) => {
+                const total = list.reduce((s, l) => s + (l.salary_payment_amount || 0), 0);
+                return (
+                  <Card key={d} className="overflow-hidden">
+                    <div className="flex items-center justify-between px-4 py-2.5 bg-slate-50 border-b border-slate-100">
+                      <div className="flex items-center gap-2 font-bold text-slate-700 text-sm">
+                        <Calendar size={16} className="text-brand-500" /> {fmtDate(d)}
+                        <Badge tone="brand">{list.length}</Badge>
+                      </div>
+                      <span className="text-sm font-bold text-emerald-600">{inr(total)}</span>
+                    </div>
+                    <div className="divide-y divide-slate-50">
+                      {list.map((l) => (
+                        <div key={l.id} className="flex items-center gap-3 px-4 py-2.5">
+                          <div className="h-9 w-9 rounded-lg bg-emerald-50 text-emerald-500 grid place-items-center"><Banknote size={16} /></div>
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-semibold text-slate-700 truncate">{l.employee_name}</div>
+                            <div className="text-xs text-slate-400">Salary · {l.method || 'Cash'}</div>
+                          </div>
+                          <span className="text-sm font-bold text-emerald-600">{inr(l.salary_payment_amount || 0)}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
+          ) : <Card className="p-4"><EmptyState title="No salary paid yet" /></Card>}
+        </div>
+      </div>
     </div>
   );
 };

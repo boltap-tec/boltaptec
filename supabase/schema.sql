@@ -222,6 +222,21 @@ create table if not exists expenditure_requests (
   paid_method   text                                -- Cash | UPI
 );
 
+-- Audit trail of deletions (viewable by the owner in the app).
+create table if not exists activity_log (
+  id            text primary key,
+  at            timestamptz default now(),
+  action        text not null,                       -- delete (room to grow)
+  entity        text not null,                       -- ledger | posting | attendance | employee
+  actor         text,                                -- who performed it
+  employee_id   text,
+  employee_name text,
+  amount        numeric,
+  category      text,
+  date          date,
+  detail        text
+);
+
 -- Grant the app's publishable/anon key full access (DEMO — see policies.sql).
 -- ⚠️ tighten with RLS + real auth before production.
 do $$
@@ -231,7 +246,7 @@ begin
     'employees','attendance','ledger','salary_details',
     'salary_postings','advance_requests','settings',
     'projects','expenditure_categories','project_expenditure','project_payments',
-    'expenditure_requests'
+    'expenditure_requests','activity_log'
   ]
   loop
     execute format('alter table public.%I disable row level security;', t);

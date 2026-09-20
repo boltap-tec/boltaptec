@@ -154,23 +154,34 @@ const NotificationBell: React.FC<{ attn: number; adv: number; exp: number }> = (
   );
 };
 
-const adminNav = [
-  { to: '/', label: 'nav.dashboard', icon: LayoutDashboard },
-  { to: '/employees', label: 'nav.employees', icon: Users },
-  { to: '/attendance', label: 'nav.attendance', icon: CalendarClock },
-  { to: '/projects', label: 'nav.projects', icon: Briefcase },
-  { to: '/project-expense', label: 'nav.projectExpense', icon: Receipt },
-  { to: '/salary', label: 'nav.salary', icon: Wallet },
-  { to: '/advances', label: 'nav.advances', icon: HandCoins },
-  { to: '/ledger', label: 'nav.ledger', icon: BookOpen },
-  { to: '/settings', label: 'nav.settings', icon: SettingsIcon },
+// Admin menu grouped into clear sections so the sidebar reads at a glance.
+const adminSections: { title: string | null; items: { to: string; label: string; icon: any }[] }[] = [
+  { title: null, items: [{ to: '/', label: 'nav.dashboard', icon: LayoutDashboard }] },
+  { title: 'People', items: [
+    { to: '/employees', label: 'nav.employees', icon: Users },
+    { to: '/attendance', label: 'nav.attendance', icon: CalendarClock },
+  ] },
+  { title: 'Money', items: [
+    { to: '/salary', label: 'nav.salary', icon: Wallet },
+    { to: '/advances', label: 'nav.advances', icon: HandCoins },
+    { to: '/ledger', label: 'nav.ledger', icon: BookOpen },
+  ] },
+  { title: 'Projects', items: [
+    { to: '/projects', label: 'nav.projects', icon: Briefcase },
+    { to: '/project-expense', label: 'nav.projectExpense', icon: Receipt },
+  ] },
+  { title: 'System', items: [{ to: '/settings', label: 'nav.settings', icon: SettingsIcon }] },
 ];
+const adminNav = adminSections.flatMap((s) => s.items);
 
 const workerNav = [
   { to: '/me', label: 'nav.myMoney', icon: Home },
   { to: '/project-expense', label: 'nav.projectExpense', icon: Receipt },
   { to: '/advances', label: 'nav.advances', icon: HandCoins },
   { to: '/my-history', label: 'nav.history', icon: History },
+];
+const workerSections: { title: string | null; items: { to: string; label: string; icon: any }[] }[] = [
+  { title: null, items: workerNav },
 ];
 
 export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -195,9 +206,37 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
   }, [totalAlerts, isAdmin]);
 
   const items = isAdmin ? adminNav : workerNav;
+  const sections = isAdmin ? adminSections : workerSections;
   const quickMenu = useData((s) => s.settings.quick_menu);
   const quickPaths = isAdmin && quickMenu && quickMenu.length ? quickMenu : items.slice(0, 5).map((n) => n.to);
   const mobileItems = isAdmin ? items.filter((n) => quickPaths.includes(n.to)) : items;
+
+  // One sidebar/drawer link (shared by desktop + mobile drawer).
+  const NavItem: React.FC<{ n: { to: string; label: string; icon: any }; onClick?: () => void }> = ({ n, onClick }) => (
+    <NavLink to={n.to} end={n.to === '/'} onClick={onClick}
+      className={({ isActive }) =>
+        `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition ${isActive ? 'bg-brand-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}>
+      <n.icon size={19} />
+      <span>{t(n.label)}</span>
+      {isAdmin && n.to === '/advances' && pendingReqs > 0 && (
+        <span className="ml-auto bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{pendingReqs}</span>
+      )}
+    </NavLink>
+  );
+
+  // Sectioned nav body (title header + its links), reused in both menus.
+  const NavBody: React.FC<{ onNavigate?: () => void }> = ({ onNavigate }) => (
+    <>
+      {sections.map((sec, i) => (
+        <div key={i} className={i > 0 ? 'mt-4' : ''}>
+          {sec.title && <div className="px-3 mb-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">{sec.title}</div>}
+          <div className="space-y-1">
+            {sec.items.map((n) => <NavItem key={n.to} n={n} onClick={onNavigate} />)}
+          </div>
+        </div>
+      ))}
+    </>
+  );
 
   const [refreshing, setRefreshing] = React.useState(false);
   const [menuOpen, setMenuOpen] = React.useState(false);
@@ -236,19 +275,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
         {isAdmin && (
           <div className="px-3 py-2 border-b border-slate-100"><TodayPlan /></div>
         )}
-        <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-          {items.map((n) => (
-            <NavLink key={n.to} to={n.to} end={n.to === '/'}
-              className={({ isActive }) =>
-                `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition ${isActive ? 'bg-brand-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-100'}`}>
-              <n.icon size={19} />
-              <span>{t(n.label)}</span>
-              {isAdmin && n.to === '/advances' && pendingReqs > 0 && (
-                <span className="ml-auto bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{pendingReqs}</span>
-              )}
-            </NavLink>
-          ))}
-        </nav>
+        <nav className="flex-1 p-3 overflow-y-auto"><NavBody /></nav>
         <div className="p-3 border-t border-slate-100 flex items-center gap-3">
           <Avatar name={session?.name || 'U'} size={34} />
           <div className="min-w-0 flex-1">
@@ -271,19 +298,7 @@ export const Layout: React.FC<{ children: React.ReactNode }> = ({ children }) =>
               <span className="font-extrabold text-slate-800 truncate flex-1">{brandName}</span>
               <button onClick={() => setMenuOpen(false)} className="p-1.5 text-slate-400"><X size={20} /></button>
             </div>
-            <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-              {items.map((n) => (
-                <NavLink key={n.to} to={n.to} end={n.to === '/'} onClick={() => setMenuOpen(false)}
-                  className={({ isActive }) =>
-                    `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-semibold transition ${isActive ? 'bg-brand-600 text-white' : 'text-slate-600 hover:bg-slate-100'}`}>
-                  <n.icon size={19} />
-                  <span>{t(n.label)}</span>
-                  {isAdmin && n.to === '/advances' && pendingReqs > 0 && (
-                    <span className="ml-auto bg-rose-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">{pendingReqs}</span>
-                  )}
-                </NavLink>
-              ))}
-            </nav>
+            <nav className="flex-1 p-3 overflow-y-auto"><NavBody onNavigate={() => setMenuOpen(false)} /></nav>
             <div className="p-3 border-t border-slate-100">
               <button onClick={() => { setMenuOpen(false); doLogout(); }} className="btn-ghost w-full text-slate-600"><LogOut size={17} /> Logout</button>
             </div>
