@@ -4,6 +4,7 @@ import { Plus, Search, Phone, MapPin, Pencil, Trash2, ChevronRight } from 'lucid
 import { useData } from '../store/useData';
 import type { Employee } from '../types';
 import { Card, Avatar, Modal, Field, EmptyState, StatusDot } from '../components/ui';
+import { QuickPayActions } from '../components/QuickPayActions';
 import { inr } from '../lib/format';
 import { advancePending } from '../lib/calc';
 import { isValidVpa } from '../lib/upi';
@@ -102,6 +103,7 @@ export const Employees: React.FC = () => {
                 Details <ChevronRight size={16} />
               </Link>
             </div>
+            <QuickPayActions emp={e} />
           </Card>
         );
       })}
