@@ -3,7 +3,7 @@ import { HandCoins, TrendingDown, Banknote, Smartphone } from 'lucide-react';
 import { useData } from '../store/useData';
 import { Modal, Field } from './ui';
 import { UpiPay } from './UpiPay';
-import { inr, today, fmtDate } from '../lib/format';
+import { inr, today } from '../lib/format';
 import { advancePending } from '../lib/calc';
 import type { Employee } from '../types';
 
