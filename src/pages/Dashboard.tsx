@@ -1,18 +1,39 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  Users, Wallet, HandCoins, TrendingUp, ArrowUpRight, Clock, Calendar, TrendingDown, Banknote,
+  Users, Wallet, HandCoins, TrendingUp, ArrowUpRight, Clock, Calendar, TrendingDown, Banknote, Smartphone,
 } from 'lucide-react';
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from 'recharts';
 import { useData } from '../store/useData';
-import { StatCard, Card, Badge, Avatar, EmptyState } from '../components/ui';
-import { inr, fmtDate, fmtDateShort, byDateDesc } from '../lib/format';
+import { StatCard, Card, Badge, Avatar, EmptyState, Modal, Field } from '../components/ui';
+import { UpiPay } from '../components/UpiPay';
+import { inr, fmtDate, fmtDateShort, today, byDateDesc } from '../lib/format';
 import { advancePending } from '../lib/calc';
 
 export const Dashboard: React.FC = () => {
-  const { employees, attendance, ledger, requests } = useData();
+  const { employees, attendance, ledger, requests, giveAdvance, paySalary } = useData();
+
+  // Give advance / pay salary straight from the dashboard (pick a worker first).
+  const [payKind, setPayKind] = useState<null | 'advance' | 'salary'>(null);
+  const [empId, setEmpId] = useState('');
+  const [amount, setAmount] = useState('');
+  const [method, setMethod] = useState<'Cash' | 'UPI'>('Cash');
+  const [note, setNote] = useState('');
+  const [weeklyRec, setWeeklyRec] = useState('');
+  const [payDate, setPayDate] = useState(today());
+  const [showPay, setShowPay] = useState(false);
+  const activeEmployees = employees.filter((e) => e.status === 'Active');
+  const selEmp = employees.find((e) => e.employee_id === empId);
+  const openPay = (k: 'advance' | 'salary') => { setPayKind(k); setEmpId(''); setAmount(''); setNote(''); setMethod('Cash'); setWeeklyRec(''); setPayDate(today()); setShowPay(false); };
+  const submitPay = () => {
+    const amt = Number(amount);
+    if (!selEmp || !amt || amt <= 0) return;
+    if (payKind === 'advance') giveAdvance(selEmp.employee_id, amt, method, note, Number(weeklyRec) || 0, payDate);
+    if (payKind === 'salary') paySalary(selEmp.employee_id, amt, null, method, payDate);
+    if (method === 'UPI') setShowPay(true); else setPayKind(null);
+  };
 
   const stats = useMemo(() => {
     const active = employees.filter((e) => e.status === 'Active').length;
@@ -60,9 +81,11 @@ export const Dashboard: React.FC = () => {
           <h1 className="text-2xl font-extrabold text-slate-800">Dashboard</h1>
           <p className="text-slate-400 text-sm">Overview of your workforce & finances</p>
         </div>
-        <Link to="/attendance" className="btn-primary hidden sm:inline-flex">
-          <Clock size={17} /> Mark Attendance
-        </Link>
+        <div className="flex items-center gap-2">
+          <button onClick={() => openPay('advance')} className="btn-primary"><HandCoins size={16} /> <span className="hidden sm:inline">Give Advance</span></button>
+          <button onClick={() => openPay('salary')} className="btn-success"><Banknote size={16} /> <span className="hidden sm:inline">Give Salary</span></button>
+          <Link to="/attendance" className="btn-ghost hidden lg:inline-flex"><Clock size={17} /> Mark Attendance</Link>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -225,6 +248,57 @@ export const Dashboard: React.FC = () => {
           ) : <Card className="p-4"><EmptyState title="No salary paid yet" /></Card>}
         </div>
       </div>
+
+      {/* Give advance / pay salary directly from the dashboard */}
+      <Modal open={!!payKind} onClose={() => setPayKind(null)} title={payKind === 'advance' ? 'Give Advance' : 'Pay Salary'}>
+        {showPay && selEmp?.upi_id ? (
+          <div className="space-y-3">
+            <div className="rounded-xl bg-emerald-50 text-emerald-700 p-3 text-sm font-semibold text-center">
+              ✓ Recorded {inr(Number(amount))} {payKind === 'advance' ? 'advance' : 'salary'} for {selEmp.name}
+            </div>
+            <UpiPay vpa={selEmp.upi_id} name={selEmp.name} amount={Number(amount)} note={payKind === 'advance' ? 'Advance' : 'Salary'} phone={selEmp.phone} />
+            <button onClick={() => setPayKind(null)} className="btn-ghost w-full">Done</button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <Field label="Employee (active only)">
+              <select className="input" value={empId} onChange={(e) => setEmpId(e.target.value)}>
+                <option value="">Select employee…</option>
+                {activeEmployees.map((e) => <option key={e.employee_id} value={e.employee_id}>{e.name}</option>)}
+              </select>
+            </Field>
+            {selEmp && (
+              <div className="text-xs text-slate-500 flex gap-3">
+                <span>Advance due: <b className="text-rose-600">{inr(advancePending(selEmp))}</b></span>
+                <span>Salary pending: <b className="text-amber-600">{inr(Math.max(0, selEmp.total_salary - selEmp.salary_given))}</b></span>
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Amount (₹)"><input type="number" className="input text-lg" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="0" /></Field>
+              <Field label="Date"><input type="date" className="input" value={payDate} onChange={(e) => setPayDate(e.target.value)} /></Field>
+            </div>
+            <Field label="Payment Method">
+              <div className="grid grid-cols-2 gap-2">
+                {(['Cash', 'UPI'] as const).map((m) => (
+                  <button key={m} onClick={() => setMethod(m)} className={`btn ${method === m ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600'}`}>
+                    {m === 'Cash' ? <Banknote size={16} /> : <Smartphone size={16} />} {m}
+                  </button>
+                ))}
+              </div>
+            </Field>
+            <Field label="Note (optional)"><input className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Reason / remark" /></Field>
+            {payKind === 'advance' && (
+              <Field label="Repay per payday (₹) — optional" hint="Auto-deducts from each week's salary until the advance is cleared.">
+                <input type="number" className="input" value={weeklyRec} onChange={(e) => setWeeklyRec(e.target.value)} placeholder="e.g. 500" />
+              </Field>
+            )}
+            <div className="flex gap-2 pt-1">
+              <button onClick={() => setPayKind(null)} className="btn-ghost flex-1">Cancel</button>
+              <button onClick={submitPay} disabled={!empId || !amount} className="btn-primary flex-1">{method === 'UPI' ? 'Record & Pay' : 'Confirm'}</button>
+            </div>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 };
