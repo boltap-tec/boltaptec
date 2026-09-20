@@ -8,7 +8,7 @@ import {
 import { useAuth } from '../store/useAuth';
 import { useData } from '../store/useData';
 import { Card, Avatar, Badge, Modal, Field, EmptyState, StatCard } from '../components/ui';
-import { inr, fmtDate, today } from '../lib/format';
+import { inr, fmtDate, today, byDateDesc } from '../lib/format';
 import { advancePending, salaryForPeriod } from '../lib/calc';
 import { getDeviceId, shortDeviceId } from '../lib/device';
 import { compressImage } from '../lib/image';
@@ -36,7 +36,7 @@ export const EmployeeHome: React.FC = () => {
   const [pinOpen, setPinOpen] = useState(false);
   const deviceId = getDeviceId();
 
-  const myLedger = useMemo(() => ledger.filter((l) => l.employee_id === emp?.employee_id), [ledger, emp]);
+  const myLedger = useMemo(() => ledger.filter((l) => l.employee_id === emp?.employee_id).slice().sort(byDateDesc), [ledger, emp]);
   const myReq = useMemo(() => requests.filter((r) => r.employee_id === emp?.employee_id), [requests, emp]);
   const thisWeek = useMemo(() => {
     if (!emp) return { total_hours: 0, salary_amount: 0, days: 0 };

@@ -7,7 +7,7 @@ import {
 import { useData } from '../store/useData';
 import { Card, Avatar, Badge, Modal, Field, StatCard, EmptyState, StatusDot } from '../components/ui';
 import { UpiPay } from '../components/UpiPay';
-import { inr, fmtDate, today, isGpaySent, displayRemark } from '../lib/format';
+import { inr, fmtDate, today, isGpaySent, displayRemark, byDateDesc } from '../lib/format';
 import { advancePending } from '../lib/calc';
 import { shortDeviceId } from '../lib/device';
 
@@ -25,7 +25,7 @@ export const EmployeeDetail: React.FC = () => {
   const [showPay, setShowPay] = useState(false);
   const [showPin, setShowPin] = useState(false);
 
-  const allMyLedger = useMemo(() => ledger.filter((l) => l.employee_id === id), [ledger, id]);
+  const allMyLedger = useMemo(() => ledger.filter((l) => l.employee_id === id).slice().sort(byDateDesc), [ledger, id]);
   const myLedger = useMemo(() => allMyLedger.slice(0, 40), [allMyLedger]);
 
   // Advance given since the last salary payment (this period's fresh advance).
@@ -39,7 +39,7 @@ export const EmployeeDetail: React.FC = () => {
       .reduce((s, l) => s + (l.advance_payment || 0), 0),
     [allMyLedger, lastSalaryDate],
   );
-  const myAtt = useMemo(() => attendance.filter((a) => a.employee_id === id), [attendance, id]);
+  const myAtt = useMemo(() => attendance.filter((a) => a.employee_id === id).slice().sort(byDateDesc), [attendance, id]);
 
   if (!emp) return (
     <div className="text-center py-20">

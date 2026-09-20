@@ -2,7 +2,7 @@ import React, { useState, useMemo } from 'react';
 import { BookOpen, Search, Download, HandCoins, Banknote, TrendingDown, Trash2, CheckCircle2, Send } from 'lucide-react';
 import { useData } from '../store/useData';
 import { Card, Avatar, Badge, EmptyState } from '../components/ui';
-import { inr, fmtDate, isGpaySent, displayRemark } from '../lib/format';
+import { inr, fmtDate, isGpaySent, displayRemark, byDateDesc } from '../lib/format';
 import type { LedgerCategory } from '../types';
 
 const catMeta: Record<LedgerCategory, { tone: any; icon: React.ReactNode; label: string }> = {
@@ -26,7 +26,7 @@ export const Ledger: React.FC = () => {
   const rows = useMemo(() => ledger.filter((l) =>
     (cat === 'all' || l.category === cat) &&
     (!q || l.employee_name.toLowerCase().includes(q.toLowerCase())),
-  ), [ledger, q, cat]);
+  ).slice().sort(byDateDesc), [ledger, q, cat]);
 
   const totals = useMemo(() => ({
     salary: ledger.filter((l) => l.category === 'Salary').reduce((s, l) => s + (l.salary_payment_amount || 0), 0),

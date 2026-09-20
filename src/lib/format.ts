@@ -32,6 +32,17 @@ export const today = (): string => {
 export const uid = (prefix = ''): string =>
   prefix + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
 
+// Sort comparator: newest date first (descending). Dates are ISO "YYYY-MM-DD"
+// strings so a plain string compare is chronological. The sort is stable, so
+// same-day rows keep their array order (newest-inserted stays on top). Missing
+// dates sort to the bottom. Use this everywhere a transaction/history list is
+// shown — rows are stored in insertion order, which is NOT chronological once
+// entries are back-dated or loaded from the seed.
+export const byDateDesc = (a: { date?: string | null }, b: { date?: string | null }): number => {
+  const da = a.date || '', db = b.date || '';
+  return da < db ? 1 : da > db ? -1 : 0;
+};
+
 // Employee display name from "Pavish_E2" -> "Pavish"
 export const shortName = (fullId: string, fallback?: string): string =>
   fallback || fullId.replace(/_E\d+$/, '');

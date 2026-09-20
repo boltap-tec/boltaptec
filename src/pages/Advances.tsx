@@ -1,12 +1,13 @@
 import React, { useState, useMemo } from 'react';
 import {
   HandCoins, Plus, Check, X, Clock, Smartphone, Banknote, Send, CheckCircle2, XCircle, Pencil,
+  TrendingDown,
 } from 'lucide-react';
 import { useData } from '../store/useData';
 import { useAuth } from '../store/useAuth';
 import { Card, Avatar, Badge, Modal, Field, EmptyState, StatCard } from '../components/ui';
 import { UpiPay } from '../components/UpiPay';
-import { inr, fmtDate, today } from '../lib/format';
+import { inr, fmtDate, today, byDateDesc, displayRemark } from '../lib/format';
 import { advancePending } from '../lib/calc';
 import { copyNumberAndOpenGpay } from '../lib/upi';
 import type { AdvanceRequest } from '../types';
@@ -14,7 +15,7 @@ import type { AdvanceRequest } from '../types';
 export const Advances: React.FC = () => {
   const { session } = useAuth();
   const isAdmin = session?.role === 'admin';
-  const { employees, requests, giveAdvance, createRequest, approveRequest, rejectRequest, updateRequest } = useData();
+  const { employees, requests, ledger, giveAdvance, createRequest, approveRequest, rejectRequest, updateRequest } = useData();
 
   const [reqModal, setReqModal] = useState(false);
   const [directModal, setDirectModal] = useState(false);
@@ -49,6 +50,17 @@ export const Advances: React.FC = () => {
   );
   const pending = visibleRequests.filter((r) => r.status === 'Pending');
   const decided = visibleRequests.filter((r) => r.status !== 'Pending');
+
+  // Actual advance money movements from the ledger — includes advances the owner
+  // gives DIRECTLY (which create no request), so they show up here too. Workers
+  // see only their own; admins see everyone. Newest first.
+  const advTxns = useMemo(
+    () => ledger
+      .filter((l) => (l.category === 'Advance_Payment' || l.category === 'Advance_Recovery') &&
+        (isAdmin || l.employee_id === session?.employee_id))
+      .slice().sort(byDateDesc),
+    [ledger, isAdmin, session],
+  );
 
   const myEmp = employees.find((e) => e.employee_id === (session?.employee_id || empId));
 
@@ -176,6 +188,38 @@ export const Advances: React.FC = () => {
           </Card>
         </div>
       )}
+
+      {/* Advance transactions — real money given/recovered (incl. direct advances) */}
+      <div>
+        <h3 className="font-bold text-slate-700 mb-2 flex items-center gap-2">
+          <HandCoins size={17} className="text-brand-500" /> Advance Transactions
+        </h3>
+        {advTxns.length === 0 ? (
+          <Card className="p-6"><EmptyState title="No advance transactions yet" hint="Advances given and recoveries appear here with their dates." /></Card>
+        ) : (
+          <Card className="divide-y divide-slate-100">
+            {advTxns.slice(0, 50).map((l) => {
+              const given = l.category === 'Advance_Payment';
+              const amt = given ? (l.advance_payment || 0) : (l.advance_recovery || 0);
+              const rem = displayRemark(l.remark);
+              return (
+                <div key={l.id} className="flex items-center gap-3 p-3">
+                  <div className={`h-9 w-9 rounded-lg grid place-items-center ${given ? 'bg-amber-50 text-amber-600' : 'bg-sky-50 text-sky-600'}`}>
+                    {given ? <HandCoins size={16} /> : <TrendingDown size={16} />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-semibold text-slate-700">
+                      {isAdmin ? `${l.employee_name} · ` : ''}{given ? 'Advance given' : 'Advance recovered'}
+                    </div>
+                    <div className="text-xs text-slate-400">{fmtDate(l.date)} · {l.method || 'Cash'}{rem ? ` · ${rem}` : ''}</div>
+                  </div>
+                  <span className={`text-sm font-bold ${given ? 'text-amber-600' : 'text-sky-600'}`}>{given ? '' : '− '}{inr(amt)}</span>
+                </div>
+              );
+            })}
+          </Card>
+        )}
+      </div>
 
       {/* Edit request modal */}
       <Modal open={!!editReq} onClose={() => setEditReq(null)} title="Edit Advance Request">
