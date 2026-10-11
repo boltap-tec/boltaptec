@@ -77,9 +77,27 @@ export const Salary: React.FC = () => {
       .filter((l) => l.category === 'Advance_Payment' && l.employee_id === employeeId && l.date >= from && l.date <= to)
       .reduce((s, l) => s + (l.advance_payment || 0), 0);
 
+  // Outstanding advance still to be recovered as of the END of a given week —
+  // a point-in-time snapshot, so each posted payroll shows its own figure rather
+  // than everyone's current balance. Anchored to the employee's current stored
+  // balance, then rolled back by any advance given/recovered AFTER `asOf` (strict
+  // `>` keeps movements dated within the week in that week's balance).
+  const advBalanceAsOf = (employeeId: string, asOf: string) => {
+    const emp = employees.find((e) => e.employee_id === employeeId);
+    if (!emp) return 0;
+    let givenAfter = 0, recoveredAfter = 0;
+    ledger.forEach((l) => {
+      if (l.employee_id !== employeeId || l.date <= asOf) return;
+      if (l.category === 'Advance_Payment') givenAfter += l.advance_payment || 0;
+      else if (l.category === 'Advance_Recovery') recoveredAfter += l.advance_recovery || 0;
+    });
+    const raw = (emp.total_advance_given || 0) - (emp.advance_recovered || 0);
+    return Math.max(0, raw - givenAfter + recoveredAfter);
+  };
+
   // Download one posted payroll (all workers) as an Excel sheet.
   const downloadPostingExcel = (p: SalaryPosting, rows: SalaryDetail[]) => {
-    const balanceAdv = (employeeId: string) => { const emp = employees.find((e) => e.employee_id === employeeId); return emp ? advancePending(emp) : 0; };
+    const balanceAdv = (employeeId: string) => advBalanceAsOf(employeeId, p.to_date);
     const data = rows.map((d) => ({
       Employee: d.employee_name,
       Period: `${d.from_date} to ${d.to_date}`,
@@ -265,7 +283,7 @@ export const Salary: React.FC = () => {
                             <td className="px-2 py-2.5 text-right font-semibold text-slate-600">{inr(d.salary_amount)}</td>
                             <td className="px-2 py-2.5 text-right text-amber-600">{(() => { const g = advGivenInPeriod(d.employee_id, p.from_date, p.to_date); return g > 0 ? inr(g) : '—'; })()}</td>
                             <td className="px-2 py-2.5 text-right text-sky-600">{d.advance_recovered > 0 ? inr(d.advance_recovered) : '—'}</td>
-                            <td className="px-2 py-2.5 text-right font-semibold text-rose-600">{(() => { const emp = employees.find((e) => e.employee_id === d.employee_id); const bal = emp ? advancePending(emp) : 0; return bal > 0 ? inr(bal) : '—'; })()}</td>
+                            <td className="px-2 py-2.5 text-right font-semibold text-rose-600">{(() => { const bal = advBalanceAsOf(d.employee_id, p.to_date); return bal > 0 ? inr(bal) : '—'; })()}</td>
                             <td className="px-2 py-2.5 text-right text-emerald-600">{d.salary_given > 0 ? inr(d.salary_given) : '—'}</td>
                             <td className="px-2 py-2.5 text-right font-bold text-slate-700">{rem > 0 ? inr(rem) : '—'}</td>
                             <td className="px-4 py-2.5 text-right whitespace-nowrap">
