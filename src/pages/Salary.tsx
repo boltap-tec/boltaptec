@@ -71,10 +71,27 @@ export const Salary: React.FC = () => {
     setMethod('Cash'); setPaid(null); setShowUpi(false); setPayDate(today());
   };
 
-  // Advance given to a worker within a specific period (the payroll week).
+  // The day after a YYYY-MM-DD date (used to roll an advance into the next week).
+  const dayAfter = (d: string) => { const x = new Date(d + 'T00:00:00'); x.setDate(x.getDate() + 1); return x.toISOString().slice(0, 10); };
+
+  // The date a ledger advance should be ATTRIBUTED to. Normally its own date,
+  // but if it was given AFTER the payroll for the week containing that date was
+  // already posted, it belongs to the next week — so return the day after that
+  // week's end. Only applies when both the advance and the posting carry a real
+  // timestamp (new data); legacy rows fall through to plain date behaviour.
+  const advEffectiveDate = (l: { date: string; created_at?: string | null }) => {
+    if (!l.created_at) return l.date;
+    const w = postings.find((p) => l.date >= p.from_date && l.date <= p.to_date);
+    if (w && w.created_at && w.created_at.includes('T') && l.created_at > w.created_at) return dayAfter(w.to_date);
+    return l.date;
+  };
+
+  // Advance given to a worker within a specific period (the payroll week),
+  // attributing each advance to its effective week (see advEffectiveDate).
   const advGivenInPeriod = (employeeId: string, from: string, to: string) =>
     ledger
-      .filter((l) => l.category === 'Advance_Payment' && l.employee_id === employeeId && l.date >= from && l.date <= to)
+      .filter((l) => l.category === 'Advance_Payment' && l.employee_id === employeeId)
+      .filter((l) => { const d = advEffectiveDate(l); return d >= from && d <= to; })
       .reduce((s, l) => s + (l.advance_payment || 0), 0);
 
   // Outstanding advance still to be recovered as of the END of a given week —
@@ -91,7 +108,7 @@ export const Salary: React.FC = () => {
     const emp = employees.find((e) => e.employee_id === employeeId);
     if (!emp) return 0;
     const givenAfter = ledger
-      .filter((l) => l.category === 'Advance_Payment' && l.employee_id === employeeId && l.date > asOf)
+      .filter((l) => l.category === 'Advance_Payment' && l.employee_id === employeeId && advEffectiveDate(l) > asOf)
       .reduce((s, l) => s + (l.advance_payment || 0), 0);
     const recoveredAfterFromSalary = salaryDetails
       .filter((d) => d.employee_id === employeeId && d.to_date > asOf)

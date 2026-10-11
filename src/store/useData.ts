@@ -429,6 +429,9 @@ export const useData = create<DataState>()(
           advance_payment: amount, advance_recovery: null,
           total_amount_given: amount, salary_id: null,
           remark: note ?? null, old_advance: emp.advance_pending, method,
+          // Stamp the exact moment so an advance given after a week's payroll was
+          // posted is attributed to the next week (see advEffectiveDate in Salary).
+          created_at: new Date().toISOString(),
         };
         set({ ledger: [entry, ...get().ledger] });
         get().updateEmployee(employeeId, {

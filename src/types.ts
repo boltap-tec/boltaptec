@@ -80,6 +80,10 @@ export interface LedgerEntry {
   remark: string | null;
   old_advance: number | null;
   method?: 'Cash' | 'UPI' | 'Bank' | null;
+  // Precise moment the entry was created (ISO). Used for advances so one given
+  // AFTER a week's payroll was posted rolls into the next week, even same day.
+  // Legacy rows have no timestamp and keep plain date-based behaviour.
+  created_at?: string | null;
 }
 
 export interface SalaryDetail {

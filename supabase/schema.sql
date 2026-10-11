@@ -64,7 +64,8 @@ create table if not exists ledger (
   salary_id             text,
   remark                text,
   old_advance           numeric,
-  method                text default 'Cash'  -- Cash | UPI | Bank
+  method                text default 'Cash', -- Cash | UPI | Bank
+  created_at            timestamptz          -- when the entry was made (advances: drives next-week attribution)
 );
 
 create table if not exists salary_postings (
@@ -129,6 +130,7 @@ alter table attendance add column if not exists open_lng  numeric;
 alter table attendance add column if not exists close_lat numeric;
 alter table attendance add column if not exists close_lng numeric;
 alter table attendance add column if not exists project_allocations jsonb;  -- Phase 3: per-project hours split
+alter table ledger     add column if not exists created_at timestamptz;  -- advance timestamp → next-week attribution
 alter table settings   add column if not exists lunch_hours       numeric default 1;
 alter table settings   add column if not exists location_required boolean default false;
 alter table settings   add column if not exists today_project_id   text;
