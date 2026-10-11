@@ -80,19 +80,27 @@ export const Salary: React.FC = () => {
   // Outstanding advance still to be recovered as of the END of a given week —
   // a point-in-time snapshot, so each posted payroll shows its own figure rather
   // than everyone's current balance. Anchored to the employee's current stored
-  // balance, then rolled back by any advance given/recovered AFTER `asOf` (strict
-  // `>` keeps movements dated within the week in that week's balance).
+  // balance, then rolled back to `asOf`:
+  //   • advances GIVEN after `asOf` (by their own date) — not yet owed then;
+  //   • recoveries that belong to a LATER week — added back.
+  // A salary recovery is attributed to its payroll PERIOD (the row's to_date),
+  // not the date it was paid, so a week's own recovery always reduces that same
+  // week's balance even if the salary was paid after the week ended. Standalone
+  // (manual) recoveries, which aren't tied to a payroll row, stay on their date.
   const advBalanceAsOf = (employeeId: string, asOf: string) => {
     const emp = employees.find((e) => e.employee_id === employeeId);
     if (!emp) return 0;
-    let givenAfter = 0, recoveredAfter = 0;
-    ledger.forEach((l) => {
-      if (l.employee_id !== employeeId || l.date <= asOf) return;
-      if (l.category === 'Advance_Payment') givenAfter += l.advance_payment || 0;
-      else if (l.category === 'Advance_Recovery') recoveredAfter += l.advance_recovery || 0;
-    });
+    const givenAfter = ledger
+      .filter((l) => l.category === 'Advance_Payment' && l.employee_id === employeeId && l.date > asOf)
+      .reduce((s, l) => s + (l.advance_payment || 0), 0);
+    const recoveredAfterFromSalary = salaryDetails
+      .filter((d) => d.employee_id === employeeId && d.to_date > asOf)
+      .reduce((s, d) => s + (d.advance_recovered || 0), 0);
+    const recoveredAfterManual = ledger
+      .filter((l) => l.category === 'Advance_Recovery' && !l.salary_id && l.employee_id === employeeId && l.date > asOf)
+      .reduce((s, l) => s + (l.advance_recovery || 0), 0);
     const raw = (emp.total_advance_given || 0) - (emp.advance_recovered || 0);
-    return Math.max(0, raw - givenAfter + recoveredAfter);
+    return Math.max(0, raw - givenAfter + recoveredAfterFromSalary + recoveredAfterManual);
   };
 
   // Download one posted payroll (all workers) as an Excel sheet.
